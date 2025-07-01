@@ -214,6 +214,33 @@ claude:
 	@echo "🤖 Starting Claude session..."
 	@claude --dangerously-skip-permissions
 
+# Git worktree development workflow
+.PHONY: worktree
+worktree:
+	@if [ -z "$(NAME)" ]; then \
+		echo "❌ Error: NAME parameter is required"; \
+		echo "Usage: make worktree NAME=<worktree-name>"; \
+		echo "Example: make worktree NAME=feature-auth"; \
+		exit 1; \
+	fi
+	@# Check if tmux session already exists first
+	@if tmux has-session -t "$(NAME)" 2>/dev/null; then \
+		echo "⚠️  Tmux session '$(NAME)' already exists"; \
+		echo "📎 Attaching to existing session..."; \
+		tmux attach-session -t "$(NAME)"; \
+	else \
+		echo "🌳 Creating new tmux session for worktree '$(NAME)'..."; \
+		if ! docker-compose ps 2>/dev/null | grep -q "agent-sandbox.*Up"; then \
+			echo "📦 Container not running. Starting it first..."; \
+			$(MAKE) up; \
+			sleep 2; \
+		fi; \
+		tmux new-session -d -s "$(NAME)"; \
+		tmux send-keys -t "$(NAME)" "docker-compose exec -w /srv/product/$(NAME) agent-sandbox /bin/zsh -c 'claude --dangerously-skip-permissions'" Enter; \
+		echo "📎 Attaching to new session..."; \
+		tmux attach-session -t "$(NAME)"; \
+	fi
+
 # Help command
 .PHONY: help
 help:
@@ -242,6 +269,7 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make claude        - Start Claude Code session"
+	@echo "  make worktree NAME=<name> - Start tmux session with Claude in specific worktree"
 	@echo "────────────────────────────────────"
 
 # Default target
