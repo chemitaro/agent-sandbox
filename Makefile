@@ -140,6 +140,18 @@ clean-env:
 	@rm -f $(ENV_FILE)
 	@echo "✅ Cleaned up"
 
+# Quick start command - one command to rule them all
+.PHONY: start
+start: validate-config
+	@if ! docker-compose ps 2>/dev/null | grep -q "agent-sandbox.*Up"; then \
+		echo "🚀 Starting Claude Code Sandbox..."; \
+		docker-compose up -d; \
+		echo "⏳ Waiting for container to be ready..."; \
+		sleep 2; \
+	fi
+	@echo "🔗 Connecting to product directory..."
+	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
+
 # Docker Compose Commands (updated)
 .PHONY: up
 up: validate-config
@@ -154,11 +166,17 @@ down:
 
 .PHONY: shell
 shell:
-	@echo "🔗 Connecting to Claude Code Sandbox..."
+	@echo "🔗 Connecting to product directory..."
+	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
+
+.PHONY: shell-sandbox
+shell-sandbox:
+	@echo "🔗 Connecting to sandbox directory..."
 	@docker-compose exec agent-sandbox /bin/zsh
 
 .PHONY: shell-product
 shell-product:
+	@echo "⚠️  Note: 'shell-product' is deprecated. Use 'shell' instead."
 	@echo "🔗 Connecting to product directory..."
 	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
 
@@ -201,8 +219,11 @@ claude:
 help:
 	@echo "Sandbox Project - Available Commands:"
 	@echo "────────────────────────────────────"
-	@echo "Configuration:"
+	@echo "Quick Start:"
 	@echo "  make init          - Initialize sandbox.config from example"
+	@echo "  make start         - Start container and connect to product directory"
+	@echo ""
+	@echo "Configuration:"
 	@echo "  make show-config   - Display current configuration"
 	@echo "  make validate-config - Validate configuration"
 	@echo "  make clean-env     - Remove generated .env file"
@@ -215,8 +236,8 @@ help:
 	@echo "  make status        - Show container status"
 	@echo ""
 	@echo "Shell Access:"
-	@echo "  make shell         - Connect to the container"
-	@echo "  make shell-product - Connect directly to /srv/product"
+	@echo "  make shell         - Connect to product directory (default)"
+	@echo "  make shell-sandbox - Connect to sandbox directory"
 	@echo "  make logs          - View container logs"
 	@echo ""
 	@echo "Development:"
