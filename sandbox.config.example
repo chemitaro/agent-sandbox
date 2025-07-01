@@ -1,0 +1,45 @@
+# Sandbox Configuration File
+# =========================
+# このファイルをsandbox.configにコピーして使用してください
+# cp sandbox.config.example sandbox.config
+
+# 必須設定
+# --------
+
+# 開発対象プロダクトのパス（絶対パス）
+# このディレクトリがコンテナ内の /srv/product にマウントされます
+# 例: /Users/yourname/projects/myapp
+SOURCE_PATH = /path/to/your/project
+
+# オプション設定
+# ------------
+
+# GitHubパーソナルアクセストークン
+# プライベートリポジトリへのアクセスが必要な場合に設定してください
+# 作成方法: https://github.com/settings/tokens
+# 必要なスコープ: repo
+# GH_TOKEN = ghp_xxxxxxxxxxxxxxxxxxxx
+
+# タイムゾーン
+# 指定しない場合はローカルシステムから自動的に検出されます
+# 確認方法:
+#   macOS: ls -la /etc/localtime
+#   Linux: cat /etc/timezone または timedatectl
+# TZ = Asia/Tokyo
+
+# カスタム環境変数（任意）
+# --------------------
+# 以下のような形式で、任意の環境変数を追加できます
+# 環境変数名は大文字とアンダースコアを使用してください
+
+# API_KEY = your-api-key
+# DATABASE_URL = postgres://localhost/myapp
+# NODE_ENV = development
+# CUSTOM_VAR = any-value-you-want
+
+# 注意事項
+# --------
+# - sandbox.configは.gitignoreに追加されているため、Gitにコミットされません
+# - 機密情報（トークンなど）を含むため、このファイルは安全に管理してください
+# - 設定の検証は make validate-config で実行できます
+# - すべての KEY = VALUE 形式の行が自動的に.envファイルに含まれます
