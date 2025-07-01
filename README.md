@@ -47,6 +47,28 @@ claude --dangerously-skip-permissions
 
 See [USAGE.md](./USAGE.md) for detailed instructions.
 
+### VS Code Devcontainer Usage
+
+This repository supports VS Code Devcontainer for a seamless development experience:
+
+1. First, start the Docker Compose environment:
+```sh
+make up
+```
+
+2. Open the project in VS Code:
+```sh
+code .
+```
+
+3. When prompted, click "Reopen in Container" or use the Command Palette:
+   - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
+   - Type "Dev Containers: Reopen in Container"
+
+4. VS Code will attach to the running container and you'll be ready to develop in `/srv/product`
+
+**Note:** The devcontainer now attaches to the existing Docker Compose container instead of building its own. This provides faster startup and consistent environments between CLI and VS Code usage.
+
 ### Option 2: Global Installation
 
 1. Install Claude Code:

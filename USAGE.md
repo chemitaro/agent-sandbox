@@ -65,17 +65,68 @@ make restart
 make down
 ```
 
-## 方法2: VS Code Devcontainer を使用した起動
+## 方法2: VS Code Devcontainer を使用した起動（新方式）
 
-### 従来のDevcontainer機能を使用
+### 新しいDevcontainer設定について
 
-1. VS Code でプロジェクトフォルダを開く
-2. コマンドパレット（Cmd/Ctrl + Shift + P）を開く
-3. `Dev Containers: Reopen in Container` を選択
-4. コンテナが自動的にビルド・起動される
-5. VS Code のターミナルで `claude --dangerously-skip-permissions` を実行
+2025年7月より、devcontainerの構成が軽量化されました。新しい設定では：
+- Devcontainerは独自のコンテナをビルドせず、Docker Composeで起動したコンテナにアタッチします
+- 環境構築はすべてDocker Compose側で行われます
+- VS Code固有の設定（拡張機能、エディタ設定）のみがdevcontainer.jsonに記載されます
 
-## 方法3: Docker Compose + VS Code の組み合わせ
+### 新方式での使用手順
+
+1. **必須**: まずDocker Composeでコンテナを起動
+   ```bash
+   make up
+   ```
+
+2. VS Code でプロジェクトフォルダを開く
+   ```bash
+   code .
+   ```
+
+3. 以下のいずれかの方法でコンテナに接続：
+   - ポップアップで「Reopen in Container」をクリック
+   - コマンドパレット（Cmd/Ctrl + Shift + P）で `Dev Containers: Reopen in Container` を選択
+
+4. VS Codeが既存のコンテナにアタッチし、`/srv/product`が作業ディレクトリとして開かれます
+
+5. ターミナルで Claude Code を実行：
+   ```bash
+   claude --dangerously-skip-permissions
+   ```
+
+### 新方式の利点
+
+- **高速な起動**: ビルド済みコンテナにアタッチするため、即座に開発を開始可能
+- **一貫性**: CLIとVS Codeで完全に同じ環境を使用
+- **柔軟性**: コンテナを停止せずにVS Codeの接続/切断が可能
+- **設定の明確化**: 環境設定とエディタ設定が明確に分離
+
+### 従来の方式からの移行
+
+既存のdevcontainerユーザーの方は、以下の手順で移行してください：
+
+1. VS Codeで開いているdevcontainerを閉じる
+2. `make down`で既存のコンテナを停止
+3. 最新のリポジトリをpull
+4. 上記の「新方式での使用手順」に従って再度開く
+
+### トラブルシューティング
+
+**Q: "Reopen in Container"を選択してもエラーが出る**
+A: Docker Composeコンテナが起動していることを確認してください：
+```bash
+make status
+# コンテナが起動していない場合
+make up
+```
+
+**Q: 作業ディレクトリが `/srv/product` ではない**
+A: devcontainer.jsonが最新版であることを確認してください。古いキャッシュが残っている場合は、VS Codeを再起動してください。
+
+## 方法3: Docker Compose + VS Code の組み合わせ（従来方式）
 
 ### Docker Composeで起動したコンテナにVS Codeで接続
 
