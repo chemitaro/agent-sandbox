@@ -155,16 +155,16 @@ down:
 .PHONY: shell
 shell:
 	@echo "🔗 Connecting to Claude Code Sandbox..."
-	@docker-compose exec claude-code-sandbox /bin/zsh
+	@docker-compose exec agent-sandbox /bin/zsh
 
 .PHONY: shell-product
 shell-product:
 	@echo "🔗 Connecting to product directory..."
-	@docker-compose exec -w /srv/product claude-code-sandbox /bin/zsh
+	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
 
 .PHONY: logs
 logs:
-	@docker-compose logs -f claude-code-sandbox
+	@docker-compose logs -f agent-sandbox
 
 .PHONY: restart
 restart:

@@ -37,7 +37,7 @@ make up
 4. Connect to the container:
 ```sh
 make shell
-# or: docker-compose exec claude-code /bin/zsh
+# or: docker-compose exec agent-sandbox /bin/zsh
 ```
 
 5. Run Claude Code:

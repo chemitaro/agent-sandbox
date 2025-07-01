@@ -82,13 +82,13 @@
 version: '3.8'
 
 services:
-  claude-code:
+  agent-sandbox:
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
       args:
         TZ: ${TZ:-America/Los_Angeles}
-    container_name: claude-code-sandbox
+    container_name: agent-sandbox
     user: node
     working_dir: /workspace
     environment:
@@ -131,7 +131,7 @@ volumes:
 docker-compose up -d
 
 # コンテナへの接続
-docker-compose exec claude-code /bin/zsh
+docker-compose exec agent-sandbox /bin/zsh
 
 # Claude Codeの実行
 claude --dangerously-skip-permissions
@@ -141,7 +141,7 @@ claude --dangerously-skip-permissions
 1. Docker Composeでコンテナを起動
 2. VS CodeのRemote Containers拡張機能を使用
 3. "Attach to Running Container"を選択
-4. "claude-code-sandbox"コンテナを選択
+4. "agent-sandbox"コンテナを選択
 
 ## 5. 移行の利点
 

@@ -1,11 +1,11 @@
 services:
-  claude-code-sandbox:  # Updated container name
+  agent-sandbox:  # Updated container name
     build:
       context: .
       dockerfile: .devcontainer/Dockerfile
       args:
         TZ: ${TZ:-Asia/Tokyo}  # Use detected timezone
-    container_name: claude-code-sandbox
+    container_name: agent-sandbox
     user: node
     working_dir: /srv/product  # Changed to product directory
     environment:

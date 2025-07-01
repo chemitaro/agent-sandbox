@@ -55,7 +55,7 @@
 ## Phase 2: コア機能実装
 
 ### 2.1 docker-compose.ymlの更新
-- [x] コンテナ名の変更（claude-code-sandbox）
+- [x] コンテナ名の変更（agent-sandbox）
 - [x] working_dirを/srv/productに変更
 - [x] volumesセクションの更新
   - [x] .:/opt/sandbox:delegated

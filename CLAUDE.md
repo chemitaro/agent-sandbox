@@ -114,7 +114,7 @@ NODE_ENV = development
 ### 3.3 プロジェクト名の統一
 すべての箇所で`box`を`sandbox`に変更：
 - ディレクトリ名
-- コンテナ名: `claude-code-sandbox`
+- コンテナ名: `agent-sandbox`
 - 設定ファイル名: `sandbox.config`
 - ドキュメント内の記述
 

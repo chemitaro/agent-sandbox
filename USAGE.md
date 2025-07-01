@@ -27,7 +27,7 @@ docker-compose up -d
 make shell
 
 # または直接docker-composeコマンドを使用
-docker-compose exec claude-code /bin/zsh
+docker-compose exec agent-sandbox /bin/zsh
 ```
 
 ### 3. ファイアウォールの設定（推奨）
@@ -36,7 +36,7 @@ docker-compose exec claude-code /bin/zsh
 
 ```bash
 # rootユーザーとして実行
-docker-compose exec -u root claude-code /usr/local/bin/init-firewall.sh
+docker-compose exec -u root agent-sandbox /usr/local/bin/init-firewall.sh
 ```
 
 **注意**: この設定により、許可されたドメイン以外へのアクセスが制限されます。
@@ -141,7 +141,7 @@ A: devcontainer.jsonが最新版であることを確認してください。古
 
 4. `Dev Containers: Attach to Running Container...` を選択
 
-5. `claude-code-sandbox` コンテナを選択
+5. `agent-sandbox` コンテナを選択
 
 6. VS Code が新しいウィンドウで開き、コンテナに接続される
 
@@ -183,7 +183,7 @@ TZ="Asia/Tokyo"
 
 ```bash
 # ログを確認
-docker-compose logs claude-code
+docker-compose logs agent-sandbox
 
 # コンテナを再ビルド
 docker-compose build --no-cache
@@ -256,5 +256,5 @@ ls -la /var/run/docker.sock
 
 ボリュームの確認：
 ```bash
-docker volume ls | grep claude-code
+docker volume ls | grep agent-sandbox
 ```

@@ -3,7 +3,7 @@
   
   // Docker Composeの既存コンテナを使用
   "dockerComposeFile": "../docker-compose.yml",
-  "service": "claude-code-sandbox",
+  "service": "agent-sandbox",
   "workspaceFolder": "/srv/product",
   
   // 実行中のコンテナを停止しない
