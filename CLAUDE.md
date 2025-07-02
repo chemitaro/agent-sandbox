@@ -277,6 +277,7 @@ sudo chown -R node:node /srv/product
 ```ini
 # sandbox.config
 OPENAI_API_KEY = sk-xxxxxxxxxxxx
+GEMINI_API_KEY = your-gemini-api-key
 CUSTOM_VAR = value
 ```
 

@@ -27,6 +27,11 @@ SOURCE_PATH = /path/to/your/project
 #   Linux: cat /etc/timezone または timedatectl
 # TZ = Asia/Tokyo
 
+# Gemini API キー
+# Gemini CLIを使用する場合に設定してください
+# 作成方法: Google AI Studio (https://aistudio.google.com/app/apikey)
+# GEMINI_API_KEY = your-gemini-api-key
+
 # カスタム環境変数（任意）
 # --------------------
 # 以下のような形式で、任意の環境変数を追加できます
