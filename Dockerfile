@@ -85,10 +85,22 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
 # Install Claude
 RUN npm install -g @anthropic-ai/claude-code
 
+# Install Gemini CLI
+RUN npm install -g @google/gemini-cli
+
+# Install uv (Python package manager) - available for projects that need it
+USER node
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Ensure uv is in PATH
+ENV PATH="/home/node/.local/bin:$PATH"
+
+# Switch back to root for script setup
+USER root
+
 # Copy and set up scripts
 COPY init-firewall.sh /usr/local/bin/
 COPY docker-entrypoint.sh /usr/local/bin/
-USER root
 RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/docker-entrypoint.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   echo "node ALL=(root) NOPASSWD: /usr/bin/docker, /usr/bin/docker-compose" >> /etc/sudoers.d/node-docker && \
