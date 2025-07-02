@@ -23,7 +23,9 @@ RUN apt update && apt install -y less \
   curl \
   ca-certificates \
   lsb-release \
-  gosu
+  gosu \
+  neovim \
+  tree
 
 # Install Docker CLI and Compose plugin (Docker-on-Docker approach)
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
@@ -50,8 +52,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Create sandbox and product directories and set permissions
-RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude && \
-  chown -R node:node /opt/sandbox /srv/product /home/node/.claude
+RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude /home/node/.config/nvim && \
+  chown -R node:node /opt/sandbox /srv/product /home/node/.claude /home/node/.config
 
 WORKDIR /opt/sandbox
 
@@ -80,6 +82,8 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
   -a "source /usr/share/doc/fzf/examples/completion.zsh" \
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
+  -a "alias vim='nvim'" \
+  -a "alias vi='nvim'" \
   -x
 
 # Install Claude
@@ -105,6 +109,11 @@ RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/docker-entrypoint.sh
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   echo "node ALL=(root) NOPASSWD: /usr/bin/docker, /usr/bin/docker-compose" >> /etc/sudoers.d/node-docker && \
   chmod 0440 /etc/sudoers.d/node-firewall /etc/sudoers.d/node-docker
+
+# Copy Slack notification script
+COPY scripts/slack-notify.js /opt/sandbox/scripts/
+RUN chmod +x /opt/sandbox/scripts/slack-notify.js && \
+    ln -s /opt/sandbox/scripts/slack-notify.js /usr/local/bin/slack-notify
 
 # Set up Docker environment
 ENV DOCKER_CONFIG=/home/node/.docker

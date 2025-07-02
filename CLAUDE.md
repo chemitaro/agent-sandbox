@@ -8,7 +8,7 @@
 
 - **作業ディレクトリ**: `/srv/product` - すべての開発作業はここで行います
 - **ツール配置**: `/opt/sandbox` - Sandbox管理ツール（通常触る必要はありません）
-- **利用可能なツール**: Claude Code、Gemini CLI、uv（Python）、Git、Docker、その他開発ツール
+- **利用可能なツール**: Claude Code、Gemini CLI、uv（Python）、Git、Docker、Slack通知、その他開発ツール
 - **ネットワーク制限**: GitHub、npm、Anthropic APIなど開発に必要なドメインのみアクセス可能
 
 ## クイックスタート
@@ -226,6 +226,7 @@ docker run --rm -u $(id -u):$(id -g) \
 ```
 
 ### 5. 環境変数の管理
+
 ```bash
 # sandbox.configに追加
 API_KEY = sk-xxxxxxxxxxxx
@@ -234,6 +235,37 @@ DATABASE_URL = postgres://localhost/mydb
 # 再生成して反映
 make generate-env
 make restart
+```
+
+### 6. Slack通知
+
+ビルドやテストの結果をSlackに通知できます：
+
+```bash
+# 基本的な使い方
+slack-notify "デプロイが完了しました"
+
+# CI/CDパイプラインでの使用例
+npm test && slack-notify "✅ テスト成功" || slack-notify "❌ テスト失敗"
+
+# 詳細情報を含む通知
+slack-notify "ビルド完了: バージョン $(git describe --tags) by $(git config user.name)"
+
+# スクリプト内での使用
+#!/bin/bash
+if make build; then
+    slack-notify "ビルド成功: プロジェクト $(basename $PWD)"
+else
+    slack-notify "@channel ビルド失敗: 確認が必要です"
+fi
+```
+
+環境変数の設定（sandbox.config）：
+```ini
+SLACK_WEBHOOK_URL = https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+SLACK_CHANNEL = #dev-notifications
+SLACK_USERNAME = Sandbox Bot
+SLACK_ICON_EMOJI = :rocket:
 ```
 
 ## トラブルシューティング

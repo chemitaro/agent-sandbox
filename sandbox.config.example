@@ -32,6 +32,23 @@ SOURCE_PATH = /path/to/your/project
 # 作成方法: Google AI Studio (https://aistudio.google.com/app/apikey)
 # GEMINI_API_KEY = your-gemini-api-key
 
+# Slack通知設定
+# Incoming Webhook URLを設定してください
+# 作成方法: https://api.slack.com/messaging/webhooks
+# 1. https://api.slack.com/apps でアプリを作成
+# 2. "Incoming Webhooks" を有効化
+# 3. "Add New Webhook to Workspace" でWebhook URLを生成
+# SLACK_WEBHOOK_URL = https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+# オプション: 通知先チャンネル（デフォルト: Webhookの設定に従う）
+# SLACK_CHANNEL = #notifications
+
+# オプション: 送信者名（デフォルト: Sandbox Notifier）
+# SLACK_USERNAME = My Bot
+
+# オプション: アイコン絵文字（デフォルト: :robot_face:）
+# SLACK_ICON_EMOJI = :rocket:
+
 # カスタム環境変数（任意）
 # --------------------
 # 以下のような形式で、任意の環境変数を追加できます
