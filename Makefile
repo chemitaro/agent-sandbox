@@ -143,7 +143,16 @@ clean-env:
 # Quick start command - one command to rule them all
 .PHONY: start
 start: validate-config
-	@if ! docker-compose ps 2>/dev/null | grep -q "agent-sandbox.*Up"; then \
+	@# Check container state (including stopped containers)
+	@if docker ps -a --format "table {{.Names}}" | grep -q "^agent-sandbox$$"; then \
+		if docker ps --format "table {{.Names}}" | grep -q "^agent-sandbox$$"; then \
+			echo "✅ Container is already running"; \
+		else \
+			echo "🔄 Container exists but stopped. Starting it..."; \
+			docker-compose start; \
+			sleep 2; \
+		fi \
+	else \
 		echo "🚀 Starting Claude Code Sandbox..."; \
 		docker-compose up -d; \
 		echo "⏳ Waiting for container to be ready..."; \
@@ -156,6 +165,7 @@ start: validate-config
 .PHONY: up
 up: validate-config
 	@echo "🚀 Starting Claude Code Sandbox..."
+	@docker-compose down 2>/dev/null || true
 	@docker-compose up -d
 	@echo "✅ Container started. Run 'make shell' to connect."
 
@@ -214,32 +224,52 @@ claude:
 	@echo "🤖 Starting Claude session..."
 	@claude --dangerously-skip-permissions
 
-# Git worktree development workflow
-.PHONY: worktree
-worktree:
-	@if [ -z "$(NAME)" ]; then \
-		echo "❌ Error: NAME parameter is required"; \
-		echo "Usage: make worktree NAME=<worktree-name>"; \
-		echo "Example: make worktree NAME=feature-auth"; \
+# Get session name from command line arguments
+SESSION_NAME := $(filter-out tmux-claude tmux-claude-wt _tmux-claude-base,$(MAKECMDGOALS))
+
+# Internal base target for tmux-claude commands (do not call directly)
+.PHONY: _tmux-claude-base
+_tmux-claude-base:
+	@if [ -z "$(SESSION_NAME)" ]; then \
+		echo "❌ Error: $(ERROR_MSG)"; \
+		echo "Usage: make $(USAGE_CMD)"; \
+		echo "Example: make $(EXAMPLE_CMD)"; \
 		exit 1; \
 	fi
 	@# Check if tmux session already exists first
-	@if tmux has-session -t "$(NAME)" 2>/dev/null; then \
-		echo "⚠️  Tmux session '$(NAME)' already exists"; \
+	@if tmux has-session -t "$(SESSION_NAME)" 2>/dev/null; then \
+		echo "⚠️  Tmux session '$(SESSION_NAME)' already exists"; \
 		echo "📎 Attaching to existing session..."; \
-		tmux attach-session -t "$(NAME)"; \
+		tmux attach-session -t "$(SESSION_NAME)"; \
 	else \
-		echo "🌳 Creating new tmux session for worktree '$(NAME)'..."; \
-		if ! docker-compose ps 2>/dev/null | grep -q "agent-sandbox.*Up"; then \
-			echo "📦 Container not running. Starting it first..."; \
-			$(MAKE) up; \
-			sleep 2; \
-		fi; \
-		tmux new-session -d -s "$(NAME)"; \
-		tmux send-keys -t "$(NAME)" "docker-compose exec -w /srv/product/$(NAME) agent-sandbox /bin/zsh -c 'claude --dangerously-skip-permissions'" Enter; \
+		echo "🌳 Creating new tmux session '$(SESSION_NAME)'..."; \
+		tmux new-session -d -s "$(SESSION_NAME)"; \
+		tmux send-keys -t "$(SESSION_NAME)" "cd $(GIT_ROOT) && make start" Enter; \
+		sleep 3; \
+		tmux send-keys -t "$(SESSION_NAME)" "$(CLAUDE_CMD)" Enter; \
 		echo "📎 Attaching to new session..."; \
-		tmux attach-session -t "$(NAME)"; \
+		tmux attach-session -t "$(SESSION_NAME)"; \
 	fi
+
+# Tmux session with Claude (simple)
+.PHONY: tmux-claude
+tmux-claude:
+	@$(MAKE) _tmux-claude-base \
+		SESSION_NAME="$(SESSION_NAME)" \
+		ERROR_MSG="Session name is required" \
+		USAGE_CMD="tmux-claude <session-name>" \
+		EXAMPLE_CMD="tmux-claude my-project" \
+		CLAUDE_CMD="echo '📂 Working in product directory' && claude --dangerously-skip-permissions"
+
+# Tmux session with Claude for worktree
+.PHONY: tmux-claude-wt
+tmux-claude-wt:
+	@$(MAKE) _tmux-claude-base \
+		SESSION_NAME="$(SESSION_NAME)" \
+		ERROR_MSG="Worktree name is required" \
+		USAGE_CMD="tmux-claude-wt <worktree-name>" \
+		EXAMPLE_CMD="tmux-claude-wt feature-auth" \
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && claude --dangerously-skip-permissions"
 
 # Help command
 .PHONY: help
@@ -269,8 +299,13 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make claude        - Start Claude Code session"
-	@echo "  make worktree NAME=<name> - Start tmux session with Claude in specific worktree"
+	@echo "  make tmux-claude <name>     - Start tmux session with Claude in product directory"
+	@echo "  make tmux-claude-wt <name>  - Start tmux session with Claude in specific worktree"
 	@echo "────────────────────────────────────"
 
 # Default target
 .DEFAULT_GOAL := help
+
+# Catch-all target to prevent "No rule to make target" errors when using positional arguments
+%:
+	@:
