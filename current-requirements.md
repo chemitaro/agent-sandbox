@@ -11,8 +11,9 @@
 
 #### ファイル構成
 - `.devcontainer/devcontainer.json`: VS Code Devcontainerの設定ファイル
-- `.devcontainer/Dockerfile`: コンテナイメージの定義
-- `.devcontainer/init-firewall.sh`: ネットワークセキュリティ設定スクリプト
+- `Dockerfile`: コンテナイメージの定義（ルートディレクトリ）
+- `init-firewall.sh`: ネットワークセキュリティ設定スクリプト（ルートディレクトリ）
+- `docker-entrypoint.sh`: コンテナエントリーポイントスクリプト（ルートディレクトリ）
 - `.env`: 環境変数設定ファイル
 
 #### 主要な機能
@@ -85,7 +86,7 @@ services:
   agent-sandbox:
     build:
       context: .
-      dockerfile: .devcontainer/Dockerfile
+      dockerfile: Dockerfile
       args:
         TZ: ${TZ:-America/Los_Angeles}
     container_name: agent-sandbox
