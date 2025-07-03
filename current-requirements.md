@@ -12,8 +12,9 @@
 #### ファイル構成
 - `.devcontainer/devcontainer.json`: VS Code Devcontainerの設定ファイル
 - `Dockerfile`: コンテナイメージの定義（ルートディレクトリ）
-- `init-firewall.sh`: ネットワークセキュリティ設定スクリプト（ルートディレクトリ）
-- `docker-entrypoint.sh`: コンテナエントリーポイントスクリプト（ルートディレクトリ）
+- `scripts/init-firewall.sh`: ネットワークセキュリティ設定スクリプト
+- `scripts/docker-entrypoint.sh`: コンテナエントリーポイントスクリプト
+- `scripts/migrate-config.sh`: 設定ファイル移行スクリプト
 - `.env`: 環境変数設定ファイル
 
 #### 主要な機能
@@ -173,7 +174,7 @@ volumes:
 ```
 
 #### エントリポイントスクリプト
-- `docker-entrypoint.sh`でDockerソケットの権限を動的に調整
+- `scripts/docker-entrypoint.sh`でDockerソケットの権限を動的に調整
 - ホストとコンテナのGIDの違いを自動処理
 - gosuを使用した安全な権限切り替え
 

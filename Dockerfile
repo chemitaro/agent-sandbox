@@ -107,8 +107,8 @@ ENV PATH="/home/node/.local/bin:$PATH"
 USER root
 
 # Copy and set up scripts
-COPY init-firewall.sh /usr/local/bin/
-COPY docker-entrypoint.sh /usr/local/bin/
+COPY scripts/init-firewall.sh /usr/local/bin/
+COPY scripts/docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/docker-entrypoint.sh && \
   echo "node ALL=(root) NOPASSWD: /usr/local/bin/init-firewall.sh" > /etc/sudoers.d/node-firewall && \
   echo "node ALL=(root) NOPASSWD: /usr/bin/docker, /usr/bin/docker-compose" >> /etc/sudoers.d/node-docker && \
