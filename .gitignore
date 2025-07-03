@@ -1,3 +1,5 @@
-product/
+# productディレクトリ内のファイルは無視するが、ディレクトリ自体は保持
+product/*
+!product/.keep
 .env
 sandbox.config
