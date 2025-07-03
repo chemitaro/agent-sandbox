@@ -51,6 +51,10 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 # Set `DEVCONTAINER` environment variable to help with orientation
 ENV DEVCONTAINER=true
 
+# Set default TMUX_SESSION_NAME for direct docker access
+# This will be overridden by make shell/start commands when accessed from tmux
+ENV TMUX_SESSION_NAME=non-tmux
+
 # Create sandbox and product directories and set permissions
 RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude /home/node/.config/nvim && \
   chown -R node:node /opt/sandbox /srv/product /home/node/.claude /home/node/.config

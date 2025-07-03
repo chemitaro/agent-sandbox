@@ -52,6 +52,10 @@ DETECTED_TZ := $(shell \
 	fi)
 export TZ := $(DETECTED_TZ)
 
+# Get tmux session helper
+TMUX_SESSION_SCRIPT := scripts/get-tmux-session.sh
+GET_TMUX_SESSION = $(shell if [ -x $(TMUX_SESSION_SCRIPT) ]; then $(TMUX_SESSION_SCRIPT); else echo "non-tmux"; fi)
+
 # Generate .env file
 .PHONY: generate-env
 generate-env:
@@ -159,7 +163,12 @@ start: validate-config
 		sleep 2; \
 	fi
 	@echo "🔗 Connecting to product directory..."
-	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
+	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
+	echo "📍 Host tmux session: $$TMUX_SESSION"; \
+	docker-compose exec \
+		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
+		-w /srv/product \
+		agent-sandbox /bin/zsh
 
 # Docker Compose Commands (updated)
 .PHONY: up
@@ -177,12 +186,21 @@ down:
 .PHONY: shell
 shell:
 	@echo "🔗 Connecting to product directory..."
-	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
+	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
+	echo "📍 Host tmux session: $$TMUX_SESSION"; \
+	docker-compose exec \
+		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
+		-w /srv/product \
+		agent-sandbox /bin/zsh
 
 .PHONY: shell-sandbox
 shell-sandbox:
 	@echo "🔗 Connecting to sandbox directory..."
-	@docker-compose exec agent-sandbox /bin/zsh
+	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
+	echo "📍 Host tmux session: $$TMUX_SESSION"; \
+	docker-compose exec \
+		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
+		agent-sandbox /bin/zsh
 
 .PHONY: shell-product
 shell-product:
