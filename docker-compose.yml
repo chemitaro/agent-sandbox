@@ -10,6 +10,8 @@ services:
     container_name: ${CONTAINER_NAME:-agent-sandbox}
     user: node
     working_dir: /srv/product  # Changed to product directory
+    group_add:
+      - "0"  # Add node user to root group for Docker socket access
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
       - CLAUDE_CONFIG_DIR=/home/node/.claude
