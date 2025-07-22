@@ -1,10 +1,16 @@
-FROM node:20
+FROM ubuntu:24.04
 
 ARG TZ
 ENV TZ="$TZ"
 
+# Install Node.js 20
+RUN apt update && apt install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt install -y nodejs
+
 # Install basic development tools and iptables/ipset
 RUN apt update && apt install -y less \
+  git \
   procps \
   sudo \
   fzf \
@@ -25,14 +31,6 @@ RUN apt update && apt install -y less \
   gosu \
   neovim \
   tree
-
-# Install latest Git from official PPA
-RUN add-apt-repository ppa:git-core/ppa -y && \
-  apt update && \
-  apt install -y git && \
-  git --version
-
-RUN git config --global worktree.useRelativePaths true
 
 # Install Docker CLI and Compose plugin (Docker-on-Docker approach)
 RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
