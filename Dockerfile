@@ -81,6 +81,12 @@ USER node
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
+# Copy npm configuration files
+COPY --chown=node:node package.json .npmrc ./
+
+# Install npm packages based on package.json
+RUN npm install --global
+
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
 
@@ -94,12 +100,6 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "alias vim='nvim'" \
   -a "alias vi='nvim'" \
   -x
-
-# Install Claude
-RUN npm install -g @anthropic-ai/claude-code
-
-# Install Gemini CLI
-RUN npm install -g @google/gemini-cli
 
 # Install uv (Python package manager) - available for projects that need it
 USER node

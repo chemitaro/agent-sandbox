@@ -1,0 +1,27 @@
+{
+  "name": "sandbox-environment",
+  "version": "1.0.0",
+  "description": "セキュアで隔離されたDocker環境での開発作業用ツールセット",
+  "private": true,
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-code": "^1.0.0",
+    "@google/gemini-cli": "^1.0.0"
+  },
+  "scripts": {
+    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli",
+    "verify": "claude --version && gemini --version"
+  },
+  "keywords": [
+    "docker",
+    "development-environment",
+    "claude-code",
+    "gemini-cli",
+    "sandbox"
+  ],
+  "author": "sandbox-project",
+  "license": "MIT"
+}
