@@ -61,8 +61,13 @@ ENV DEVCONTAINER=true
 ENV TMUX_SESSION_NAME=non-tmux
 
 # Create sandbox and product directories and set permissions
+# /opt/sandbox: Internal sandbox tools (isolated from host)
+# /srv/product: User workspace (mounted from host)
 RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude /home/node/.config/nvim && \
   chown -R node:node /opt/sandbox /srv/product /home/node/.claude /home/node/.config
+
+# Ensure /opt/sandbox remains container-internal (not affected by host mounts)
+VOLUME ["/opt/sandbox"]
 
 WORKDIR /opt/sandbox
 
@@ -136,3 +141,16 @@ RUN mkdir -p /home/node/.docker && \
 # ENTRYPOINT will switch to node user after setup
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["/bin/zsh"]
+
+# Volume Strategy:
+# - /opt/sandbox: Container-internal volume (changes don't affect host)
+#   Contains sandbox tools, scripts, and configurations
+#   Defined as VOLUME to ensure isolation from host filesystem
+# 
+# - /srv/product: Host-mounted directory (changes sync with host)
+#   Should be mounted from host using bind mount in docker-compose.yml:
+#   volumes:
+#     - ${SOURCE_PATH}:/srv/product
+#   
+# This ensures sandbox environment modifications stay in container
+# while user workspace changes are preserved on host
