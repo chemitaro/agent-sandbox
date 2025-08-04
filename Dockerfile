@@ -8,6 +8,9 @@ RUN apt update && apt install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt install -y nodejs
 
+# Create node user explicitly (Ubuntu 24.04 doesn't create node user automatically)
+RUN groupadd -r node && useradd -r -g node -s /bin/bash -m node
+
 # Install basic development tools and iptables/ipset
 RUN apt update && apt install -y less \
   git \
@@ -33,13 +36,13 @@ RUN apt update && apt install -y less \
   tree
 
 # Install Docker CLI and Compose plugin (Docker-on-Docker approach)
-RUN curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/debian $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null && \
   apt update && \
   apt install -y docker-ce-cli docker-compose-plugin
 
-# Create docker group with standard GID (999)
-RUN groupadd -g 999 docker || true
+# Create docker group (let system assign GID)
+RUN if ! getent group docker; then groupadd docker; fi
 
 # Ensure default node user has access to /usr/local/share
 RUN mkdir -p /usr/local/share/npm-global && \
@@ -72,7 +75,7 @@ VOLUME ["/opt/sandbox"]
 WORKDIR /opt/sandbox
 
 RUN ARCH=$(dpkg --print-architecture) && \
-  wget "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_${ARCH}.deb" && \
+  curl -L -o "git-delta_0.18.2_${ARCH}.deb" "https://github.com/dandavison/delta/releases/download/0.18.2/git-delta_0.18.2_${ARCH}.deb" && \
   sudo dpkg -i "git-delta_0.18.2_${ARCH}.deb" && \
   rm "git-delta_0.18.2_${ARCH}.deb"
 
@@ -90,13 +93,14 @@ ENV PATH=$PATH:/usr/local/share/npm-global/bin
 COPY --chown=node:node package.json .npmrc ./
 
 # Install npm packages based on package.json
-RUN npm install --global
+# Clear npm cache to ensure latest versions are fetched
+RUN npm cache clean --force && npm run install-global
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
 
 # Default powerline10k theme
-RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
+RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
   -p git \
   -p fzf \
   -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
