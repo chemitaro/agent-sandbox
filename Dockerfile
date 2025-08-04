@@ -11,9 +11,17 @@ RUN apt update && apt install -y curl && \
 # Create node user explicitly (Ubuntu 24.04 doesn't create node user automatically)
 RUN groupadd -r node && useradd -r -g node -s /bin/bash -m node
 
+# Install Git latest version from official PPA
+RUN apt update && \
+    DEBIAN_FRONTEND=noninteractive apt install -y software-properties-common && \
+    add-apt-repository ppa:git-core/ppa -y && \
+    apt update && \
+    apt install -y git && \
+    echo "✅ Git version: $(git --version)" && \
+    rm -rf /var/lib/apt/lists/*
+
 # Install basic development tools and iptables/ipset
 RUN apt update && apt install -y less \
-  git \
   procps \
   sudo \
   fzf \
