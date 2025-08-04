@@ -9,10 +9,11 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.67",
-    "@google/gemini-cli": "^1.0.0"
+    "@google/gemini-cli": "^1.0.0",
+    "@sasazame/ccresume": "latest"
   },
   "scripts": {
-    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli",
+    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli @sasazame/ccresume",
     "verify": "claude --version && gemini --version"
   },
   "keywords": [
