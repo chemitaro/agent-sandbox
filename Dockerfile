@@ -128,6 +128,9 @@ ENV PATH="/home/node/.local/bin:$PATH"
 # Switch back to root for script setup
 USER root
 
+# Install Cursor CLI
+RUN curl https://cursor.com/install -fsS | bash
+
 # Copy and set up scripts
 COPY scripts/init-firewall.sh /usr/local/bin/
 COPY scripts/docker-entrypoint.sh /usr/local/bin/
