@@ -191,18 +191,18 @@ _tmux-claude-base:
 		exit 1; \
 	fi
 	@# Check if tmux session already exists first
-	@if tmux has-session -t "$(SESSION_NAME)" 2>/dev/null; then \
+	@if tmux has-session -t "=$(SESSION_NAME)" 2>/dev/null; then \
 		echo "⚠️  Tmux session '$(SESSION_NAME)' already exists"; \
 		echo "📎 Attaching to existing session..."; \
-		tmux attach-session -t "$(SESSION_NAME)"; \
+		tmux attach-session -t "=$(SESSION_NAME)"; \
 	else \
 		echo "🌳 Creating new tmux session '$(SESSION_NAME)'..."; \
 		tmux new-session -d -s "$(SESSION_NAME)"; \
-		tmux send-keys -t "$(SESSION_NAME)" "cd $(GIT_ROOT) && make start" Enter; \
+		tmux send-keys -t "=$(SESSION_NAME):" "cd $(GIT_ROOT) && make start" Enter; \
 		sleep 3; \
-		tmux send-keys -t "$(SESSION_NAME)" "$(CLAUDE_CMD)" Enter; \
+		tmux send-keys -t "=$(SESSION_NAME):" "$(CLAUDE_CMD)" Enter; \
 		echo "📎 Attaching to new session..."; \
-		tmux attach-session -t "$(SESSION_NAME)"; \
+		tmux attach-session -t "=$(SESSION_NAME)"; \
 	fi
 
 # Tmux session with Claude (simple)
