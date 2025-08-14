@@ -97,12 +97,12 @@ USER node
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
-# Copy npm configuration files
-COPY --chown=node:node package.json .npmrc ./
+# Copy npm configuration files to a temporary location that won't be overwritten by volume mount
+COPY --chown=node:node package.json .npmrc /tmp/npm-setup/
 
-# Install npm packages based on package.json
+# Install npm packages based on package.json from temporary location
 # Clear npm cache to ensure latest versions are fetched
-RUN npm cache clean --force && npm run install-global
+RUN cd /tmp/npm-setup && npm cache clean --force && npm run install-global && rm -rf /tmp/npm-setup
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
@@ -111,8 +111,6 @@ ENV SHELL=/bin/zsh
 RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
   -p git \
   -p fzf \
-  -a "source /usr/share/doc/fzf/examples/key-bindings.zsh" \
-  -a "source /usr/share/doc/fzf/examples/completion.zsh" \
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -a "alias vim='nvim'" \
   -a "alias vi='nvim'" \

@@ -10,17 +10,19 @@
   "dependencies": {
     "@anthropic-ai/claude-code": "^1.0.67",
     "@google/gemini-cli": "^1.0.0",
-    "@sasazame/ccresume": "latest"
+    "@sasazame/ccresume": "latest",
+    "@openai/codex": "^0.21.0"
   },
   "scripts": {
-    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli @sasazame/ccresume",
-    "verify": "claude --version && gemini --version"
+    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli @sasazame/ccresume @openai/codex",
+    "verify": "claude --version && gemini --version && npx -y @openai/codex --version"
   },
   "keywords": [
     "docker",
     "development-environment",
     "claude-code",
     "gemini-cli",
+    "codex-cli",
     "sandbox"
   ],
   "author": "sandbox-project",
