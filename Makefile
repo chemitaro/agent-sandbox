@@ -94,7 +94,7 @@ start: validate-config
 		fi \
 	else \
 		echo "🚀 Starting Claude Code Sandbox..."; \
-		docker-compose up -d; \
+		docker-compose up -d --build; \
 		echo "⏳ Waiting for container to be ready..."; \
 		sleep 2; \
 	fi
