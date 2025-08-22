@@ -120,7 +120,7 @@ RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/downloa
 USER node
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Ensure uv is in PATH
+# Ensure uv and claude are in PATH
 ENV PATH="/home/node/.local/bin:$PATH"
 
 # Switch back to root for script setup
@@ -128,6 +128,12 @@ USER root
 
 # Install Cursor CLI
 RUN curl https://cursor.com/install -fsS | bash
+
+# Install Claude Code (Native Install)
+# Run as node user to install in correct home directory
+USER node
+RUN curl -fsSL https://claude.ai/install.sh | bash
+USER root
 
 # Copy and set up scripts
 COPY scripts/init-firewall.sh /usr/local/bin/
