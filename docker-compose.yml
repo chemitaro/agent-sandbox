@@ -15,6 +15,8 @@ services:
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
       - CLAUDE_CONFIG_DIR=/home/node/.claude
+      - CODEX_CONFIG_DIR=/home/node/.codex
+      - GEMINI_CONFIG_DIR=/home/node/.gemini
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - DEVCONTAINER=true
       # Timezone
@@ -29,6 +31,8 @@ services:
       - ${SOURCE_PATH}:/srv/product  # Product code mount
       - claude-code-bashhistory:/commandhistory
       - claude-code-config:/home/node/.claude
+      - codex-cli-config:/home/node/.codex
+      - gemini-cli-config:/home/node/.gemini
       # Docker socket for Docker-on-Docker
       - /var/run/docker.sock:/var/run/docker.sock
       # Host sandbox path for Docker operations
@@ -48,4 +52,10 @@ volumes:
     external: true
   claude-code-config:
     name: claude-code-config
+    external: true
+  codex-cli-config:
+    name: codex-cli-config
+    external: true
+  gemini-cli-config:
+    name: gemini-cli-config
     external: true

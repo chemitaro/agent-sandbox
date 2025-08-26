@@ -74,8 +74,10 @@ ENV TMUX_SESSION_NAME=non-tmux
 # Create sandbox and product directories and set permissions
 # /opt/sandbox: Internal sandbox tools (isolated from host)
 # /srv/product: User workspace (mounted from host)
-RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude /home/node/.config/nvim && \
-  chown -R node:node /opt/sandbox /srv/product /home/node/.claude /home/node/.config
+RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/nvim && \
+  chown -R node:node /opt/sandbox /srv/product /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config && \
+  ln -s /home/node/.codex /home/node/.config/codex || true && \
+  ln -s /home/node/.gemini /home/node/.config/gemini || true
 
 # Ensure /opt/sandbox remains container-internal (not affected by host mounts)
 VOLUME ["/opt/sandbox"]
@@ -122,6 +124,12 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Ensure uv and claude are in PATH
 ENV PATH="/home/node/.local/bin:$PATH"
+
+# Codex CLI config directory (persisted via volume)
+ENV CODEX_CONFIG_DIR=/home/node/.codex
+
+# Gemini CLI config directory (persisted via volume)
+ENV GEMINI_CONFIG_DIR=/home/node/.gemini
 
 # Switch back to root for script setup
 USER root
