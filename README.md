@@ -19,41 +19,71 @@ This repository includes a secure containerized environment for running Claude C
 1. Clone this repository and navigate to it:
 ```sh
 git clone https://github.com/chemitaro/agent-sandbox.git [your-project-name]
-cd your-project-name
+cd [your-project-name]
 ```
 
-2. Copy `.env.example` to `.env` and configure:
+2. Initialize configuration:
 ```sh
-cp .env.example .env
-# Edit .env with your settings
+make init
+# This will create sandbox.config from sandbox.config.example
 ```
 
-3. Start the container:
+3. Edit `sandbox.config` with your settings:
 ```sh
+# Edit sandbox.config to set:
+# SOURCE_PATH = /path/to/your/project (required)
+# GH_TOKEN = ghp_xxxxxxxxxxxx (optional, for private repos)
+# Other optional settings...
+vim sandbox.config  # or your preferred editor
+```
+
+4. Quick start - start container and connect:
+```sh
+make start
+# This will:
+# - Validate configuration
+# - Auto-generate .env from sandbox.config
+# - Start the container if not running
+# - Connect to /srv/product directory
+```
+
+Alternatively, manage containers manually:
+```sh
+# Start container
 make up
-# or: docker-compose up -d
-```
 
-4. Connect to the container:
-```sh
-make shell
-# or: docker-compose exec agent-sandbox /bin/zsh
+# Connect to container
+make shell          # Connect to /srv/product (default)
+make shell-sandbox  # Connect to /opt/sandbox
+
+# Other commands
+make status         # Check container status
+make down           # Stop container
+make restart        # Restart container
+make rebuild        # Rebuild and restart container
 ```
 
 5. Run Claude Code:
 ```sh
+# Inside the container
 claude --dangerously-skip-permissions
+
+# Or use tmux sessions (from host)
+make tmux-claude my-project      # Start tmux session with Claude
+make tmux-claude-wt feature-xyz  # Start in specific worktree
 ```
 
-See [USAGE.md](./USAGE.md) for detailed instructions.
+See [CLAUDE.md](./CLAUDE.md) for detailed usage instructions.
 
 ### VS Code Devcontainer Usage
 
 This repository supports VS Code Devcontainer for a seamless development experience:
 
-1. First, start the Docker Compose environment:
+1. First, initialize and start the Docker Compose environment:
 ```sh
-make up
+make init           # If not already done
+vim sandbox.config  # Configure your settings
+make up             # Start the container
 ```
 
 2. Open the project in VS Code:
