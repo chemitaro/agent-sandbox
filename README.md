@@ -18,8 +18,8 @@ This repository includes a secure containerized environment for running Claude C
 
 1. Clone this repository and navigate to it:
 ```sh
-git clone <repository-url>
-cd box
+git clone https://github.com/chemitaro/agent-sandbox.git [your-project-name]
+cd your-project-name
 ```
 
 2. Copy `.env.example` to `.env` and configure:
