@@ -243,7 +243,7 @@ tmux-codex:
 		ERROR_MSG="Session name is required" \
 		USAGE_CMD="tmux-codex <session-name>" \
 		EXAMPLE_CMD="tmux-codex my-project" \
-		CLAUDE_CMD="echo '📂 Working in product directory' && codex"
+		CLAUDE_CMD="echo '📂 Working in product directory' && codex --ask-for-approval never --sandbox danger-full-access"
 
 # Tmux session with Codex for worktree
 .PHONY: tmux-codex-wt
@@ -254,7 +254,7 @@ tmux-codex-wt:
 		ERROR_MSG="Worktree name is required" \
 		USAGE_CMD="tmux-codex-wt <worktree-name>" \
 		EXAMPLE_CMD="tmux-codex-wt feature-auth" \
-		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex"
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex --ask-for-approval never --sandbox danger-full-access"
 
 # Help command
 .PHONY: help
