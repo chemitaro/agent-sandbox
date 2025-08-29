@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Unique tmux session for Codex CLI
+SESSION_NAME=${SESSION_NAME:-codex}
+WORKDIR=${WORKDIR:-/srv/product}
+CODEX_BIN=${CODEX_BIN:-codex}
+# Default options can be overridden via env
+CODEX_DEFAULT_OPTS=${CODEX_DEFAULT_OPTS:---ask-for-approval never --sandbox danger-full-access}
+
+quote_args() {
+  local out=""
+  for a in "$@"; do
+    out+=" "
+    out+=$(printf %q "$a")
+  done
+  printf "%s" "$out"
+}
+
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "❌ tmux not found in PATH" >&2
+  exit 1
+fi
+
+if ! command -v "$CODEX_BIN" >/dev/null 2>&1; then
+  echo "❌ Codex CLI ('$CODEX_BIN') not found in PATH" >&2
+  exit 1
+fi
+
+ARGS_ESC=$(quote_args "$@")
+RUN_CMD="$CODEX_BIN $CODEX_DEFAULT_OPTS$ARGS_ESC"
+
+if [[ -n "${TMUX:-}" ]]; then
+  # Inside tmux: switch if exists, otherwise create detached and switch
+  if tmux has-session -t "=$SESSION_NAME" 2>/dev/null; then
+    exec tmux switch-client -t "=$SESSION_NAME"
+  else
+    tmux new-session -d -s "$SESSION_NAME" -c "$WORKDIR" "$RUN_CMD"
+    exec tmux switch-client -t "=$SESSION_NAME"
+  fi
+else
+  # Outside tmux: attach or create/attach
+  exec tmux new-session -A -s "$SESSION_NAME" -c "$WORKDIR" "$RUN_CMD"
+fi
+

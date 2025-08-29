@@ -73,6 +73,17 @@ make tmux-claude my-project      # Start tmux session with Claude
 make tmux-claude-wt feature-xyz  # Start in specific worktree
 ```
 
+6. One-command tmux sessions (inside container):
+```sh
+# Always attach to a unique session in /srv/product
+tmux-claude   # Unique Claude Code session named "claude"
+tmux-codex    # Unique Codex CLI session named "codex"
+
+# Both commands:
+# - Attach if the session already exists
+# - Otherwise create the session in /srv/product and start the tool
+```
+
 See [CLAUDE.md](./CLAUDE.md) for detailed usage instructions.
 
 ### VS Code Devcontainer Usage
