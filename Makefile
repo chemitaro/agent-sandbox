@@ -221,7 +221,7 @@ tmux-claude:
 		ERROR_MSG="Session name is required" \
 		USAGE_CMD="tmux-claude <session-name>" \
 		EXAMPLE_CMD="tmux-claude my-project" \
-		CLAUDE_CMD="echo '📂 Working in product directory' && (claude --continue --dangerously-skip-permissions 2>/dev/null || claude --dangerously-skip-permissions)"
+		CLAUDE_CMD="echo '📂 Working in product directory' && tmux-claude"
 
 # Tmux session with Claude for worktree
 .PHONY: tmux-claude-wt
@@ -232,7 +232,7 @@ tmux-claude-wt:
 		ERROR_MSG="Worktree name is required" \
 		USAGE_CMD="tmux-claude-wt <worktree-name>" \
 		EXAMPLE_CMD="tmux-claude-wt feature-auth" \
-		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && (claude --continue --dangerously-skip-permissions 2>/dev/null || claude --dangerously-skip-permissions)"
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && tmux-claude"
 
 # Tmux session with Codex (simple)
 .PHONY: tmux-codex
@@ -243,7 +243,7 @@ tmux-codex:
 		ERROR_MSG="Session name is required" \
 		USAGE_CMD="tmux-codex <session-name>" \
 		EXAMPLE_CMD="tmux-codex my-project" \
-		CLAUDE_CMD="echo '📂 Working in product directory' && codex --ask-for-approval never --sandbox danger-full-access"
+		CLAUDE_CMD="echo '📂 Working in product directory' && tmux-codex"
 
 # Tmux session with Codex for worktree
 .PHONY: tmux-codex-wt
@@ -254,7 +254,7 @@ tmux-codex-wt:
 		ERROR_MSG="Worktree name is required" \
 		USAGE_CMD="tmux-codex-wt <worktree-name>" \
 		EXAMPLE_CMD="tmux-codex-wt feature-auth" \
-		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex --ask-for-approval never --sandbox danger-full-access"
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && tmux-codex"
 
 # Help command
 .PHONY: help
