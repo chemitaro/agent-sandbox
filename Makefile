@@ -232,7 +232,7 @@ tmux-claude-wt:
 		ERROR_MSG="Worktree name is required" \
 		USAGE_CMD="tmux-claude-wt <worktree-name>" \
 		EXAMPLE_CMD="tmux-claude-wt feature-auth" \
-		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && tmux-claude"
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && (claude --continue --dangerously-skip-permissions 2>/dev/null || claude --dangerously-skip-permissions)"
 
 # Tmux session with Codex (simple)
 .PHONY: tmux-codex
@@ -254,7 +254,7 @@ tmux-codex-wt:
 		ERROR_MSG="Worktree name is required" \
 		USAGE_CMD="tmux-codex-wt <worktree-name>" \
 		EXAMPLE_CMD="tmux-codex-wt feature-auth" \
-		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && tmux-codex"
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex --ask-for-approval never --sandbox danger-full-access"
 
 # Help command
 .PHONY: help
