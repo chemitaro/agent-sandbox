@@ -6,7 +6,7 @@
 
 ## 環境の特徴
 
-- **作業ディレクトリ**: `/srv/product` - すべての開発作業はここで行います
+- **作業ディレクトリ**: `/srv/${PRODUCT_NAME}` - すべての開発作業はここで行います（sandbox.configで設定）
 - **ツール配置**: `/opt/sandbox` - Sandbox管理ツール（通常触る必要はありません）
 - **利用可能なツール**: Claude Code、Gemini CLI、uv（Python）、Git、Docker、Slack通知、その他開発ツール
 - **ネットワーク制限**: GitHub、npm、Anthropic APIなど開発に必要なドメインのみアクセス可能
@@ -48,8 +48,8 @@ make tmux-claude-wt feature-branch
 
 ### コンテナ管理
 ```bash
-make start         # コンテナ起動してproductディレクトリに接続
-make shell         # productディレクトリに接続（デフォルト）
+make start         # コンテナ起動して作業ディレクトリに接続
+make shell         # 作業ディレクトリに接続（/srv/${PRODUCT_NAME}）
 make shell-sandbox # sandboxディレクトリに接続
 make down          # コンテナ停止
 make rebuild       # コンテナ再ビルド
@@ -58,7 +58,7 @@ make status        # コンテナ状態確認
 
 ### 開発セッション管理
 ```bash
-make tmux-claude <name>    # tmuxセッションでClaude起動（productディレクトリ）
+make tmux-claude <name>    # tmuxセッションでClaude起動（作業ディレクトリ）
 make tmux-claude-wt <name> # tmuxセッションでClaude起動（特定worktree）
 make claude                # 現在のシェルでClaude起動
 ```
@@ -71,7 +71,7 @@ make claude                # 現在のシェルでClaude起動
 make tmux-claude new-project
 
 # コンテナ内（自動的に起動）
-cd /srv/product
+cd /srv/${PRODUCT_NAME}  # PRODUCT_NAMEで指定したディレクトリ
 git init my-app
 cd my-app
 # Claude Codeが起動しているので、そのまま開発開始
@@ -83,7 +83,7 @@ cd my-app
 make start
 
 # コンテナ内
-cd /srv/product
+cd /srv/${PRODUCT_NAME}  # PRODUCT_NAMEで指定したディレクトリ
 git status
 claude --dangerously-skip-permissions
 ```
@@ -91,7 +91,7 @@ claude --dangerously-skip-permissions
 ### 3. Python プロジェクトの開始
 ```bash
 # コンテナ内
-cd /srv/product/my-python-app
+cd /srv/${PRODUCT_NAME}/my-python-app
 uv init .
 uv add fastapi uvicorn
 uv run python main.py
@@ -146,7 +146,7 @@ Sandboxコンテナは、ホストのDockerソケット（`/var/run/docker.sock`
 
 ```bash
 # ❌ 間違い：コンテナ内のパスを使用
-docker run -v /srv/product/myapp:/app myimage
+docker run -v /srv/${PRODUCT_NAME}/myapp:/app myimage
 
 # ✅ 正しい：ホスト側の絶対パスを使用
 docker run -v $HOST_PRODUCT_PATH/myapp:/app myimage
@@ -300,7 +300,7 @@ make tmux-claude existing-session
 ls -la
 
 # 必要に応じて権限変更
-sudo chown -R node:node /srv/product
+sudo chown -R node:node /srv/${PRODUCT_NAME}
 ```
 
 ## 高度な使い方
@@ -314,17 +314,67 @@ CUSTOM_VAR = value
 ```
 
 ### 複数プロジェクトの管理
+
+**PRODUCT_NAME設定による分離**:
+sandbox.configで`PRODUCT_NAME`を設定することで、プロジェクトごとに独立した環境を作成できます：
+
 ```
-/srv/product/
-├── project-a/     # Node.js プロジェクト
-├── project-b/     # Python プロジェクト（uv使用）
-└── project-c/     # Go プロジェクト
+# Project A の設定（sandbox.config）
+SOURCE_PATH = /Users/yourname/projects/frontend
+PRODUCT_NAME = frontend
+# → /srv/frontend にマウント
+
+# Project B の設定（別のsandbox.config）  
+SOURCE_PATH = /Users/yourname/projects/backend
+PRODUCT_NAME = backend
+# → /srv/backend にマウント
 ```
 
-### VS Code統合
-1. VS Codeで「Remote-Containers: Attach to Running Container」を選択
-2. `agent-sandbox`コンテナを選択
-3. `/srv/product`をワークスペースとして開く
+これにより、Claude CodeとCodex CLIの設定がプロジェクトごとに分離されます。
+
+### VS Code Devcontainer統合
+
+devcontainer.jsonは`${localEnv:PRODUCT_WORK_DIR}`を使用してワークスペースフォルダーを動的に設定します。
+
+#### 推奨方法：direnvを使用（自動環境変数読み込み）
+```bash
+# direnvをインストール（初回のみ）
+# macOS: brew install direnv
+# Ubuntu: apt install direnv
+
+# プロジェクトディレクトリで.envrcを有効化
+direnv allow
+
+# VS Codeを起動（環境変数が自動的に読み込まれる）
+code .
+```
+
+**注意**: `make init`や`make generate-env`を実行すると、`.envrc`ファイルが自動生成されます。
+
+#### 手動方法：.envを読み込んでからVS Code起動
+```bash
+# macOS/Linux
+set -a; source .env; set +a; code .
+
+# Windows PowerShell
+Get-Content .env | ForEach-Object {
+  if ($_ -match '^\s*([^#][^=]+)=(.*)') {
+    [Environment]::SetEnvironmentVariable($matches[1], $matches[2], "Process")
+  }
+}; code .
+```
+
+#### VS Code内での手順
+1. VS Codeが起動したら、「Reopen in Container」をクリック
+2. または、コマンドパレット（`Ctrl/Cmd+Shift+P`）で「Dev Containers: Reopen in Container」を選択
+3. 自動的に`/srv/${PRODUCT_NAME}`がワークスペースとして開きます
+
+#### トラブルシューティング
+- **「ワークスペース フォルダーは絶対パスである必要があります」エラー**
+  - direnvを使用するか、手動で.envを環境変数として読み込んでからVS Codeを起動してください
+- **ワークスペースが/srv/productになる**
+  - PRODUCT_WORK_DIR環境変数が設定されていません
+  - `direnv allow`を実行するか、手動で.envを読み込んでください
 
 ## セキュリティに関する注意
 

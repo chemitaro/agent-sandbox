@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Unique tmux session for Codex CLI
 SESSION_NAME=${SESSION_NAME:-codex}
-WORKDIR=${WORKDIR:-/srv/product}
+WORKDIR=${WORKDIR:-${PRODUCT_WORK_DIR}}
 CODEX_BIN=${CODEX_BIN:-codex}
 # Default options can be overridden via env
 CODEX_DEFAULT_OPTS=${CODEX_DEFAULT_OPTS:---ask-for-approval never --sandbox danger-full-access}

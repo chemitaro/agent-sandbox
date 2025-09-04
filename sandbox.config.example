@@ -7,9 +7,16 @@
 # --------
 
 # 開発対象プロダクトのパス（絶対パス）
-# このディレクトリがコンテナ内の /srv/product にマウントされます
+# このディレクトリがコンテナ内の /srv/${PRODUCT_NAME} にマウントされます
 # 例: /Users/yourname/projects/myapp
 SOURCE_PATH = /path/to/your/project
+
+# プロダクト名
+# コンテナ内のワークディレクトリ名として使用されます: /srv/${PRODUCT_NAME}
+# これによりプロジェクトごとに独立したClaude Code/Codex CLI設定を保持できます
+# 変更することで、プロジェクトごとに異なるディレクトリを使用できます
+# 例: myapp, frontend, backend-api など
+PRODUCT_NAME = product
 
 # オプション設定
 # ------------

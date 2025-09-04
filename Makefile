@@ -20,7 +20,7 @@ SOURCE_PATH ?= $(HOME)/workspace/product
 export HOST_SANDBOX_PATH := $(GIT_ROOT)
 export HOST_USERNAME := $(CURRENT_USER)
 export SOURCE_PATH
-# TZ is now handled by generate-env.sh script
+# TZ and PRODUCT_NAME are now handled by generate-env.sh script
 
 # Timezone is now handled by generate-env.sh script
 
@@ -35,7 +35,7 @@ generate-env:
 
 # Validate configuration
 .PHONY: validate-config
-validate-config:
+validate-config: generate-env
 	@scripts/generate-env.sh --validate
 
 # Initialize configuration
@@ -71,8 +71,9 @@ show-config: generate-env
 # Clean generated files
 .PHONY: clean-env
 clean-env:
-	@echo "🧹 Removing generated .env file..."
+	@echo "🧹 Removing generated files..."
 	@rm -f $(ENV_FILE)
+	@rm -f .devcontainer/devcontainer.json
 	@echo "✅ Cleaned up"
 
 # Quick start command - one command to rule them all
@@ -101,9 +102,10 @@ start: validate-config
 	@echo "🔗 Connecting to product directory..."
 	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
 	echo "📍 Host tmux session: $$TMUX_SESSION"; \
+	PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) | cut -d'=' -f2); \
 	docker-compose exec \
 		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
-		-w /srv/product \
+		-w $$PRODUCT_WORK_DIR \
 		agent-sandbox /bin/zsh
 
 # Docker Compose Commands (updated)
@@ -124,9 +126,10 @@ shell:
 	@echo "🔗 Connecting to product directory..."
 	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
 	echo "📍 Host tmux session: $$TMUX_SESSION"; \
+	PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) | cut -d'=' -f2); \
 	docker-compose exec \
 		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
-		-w /srv/product \
+		-w $$PRODUCT_WORK_DIR \
 		agent-sandbox /bin/zsh
 
 .PHONY: shell-sandbox
@@ -142,7 +145,8 @@ shell-sandbox:
 shell-product:
 	@echo "⚠️  Note: 'shell-product' is deprecated. Use 'shell' instead."
 	@echo "🔗 Connecting to product directory..."
-	@docker-compose exec -w /srv/product agent-sandbox /bin/zsh
+	@PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) 2>/dev/null | cut -d'=' -f2 || echo "/srv/product"); \
+	docker-compose exec -w $$PRODUCT_WORK_DIR agent-sandbox /bin/zsh
 
 .PHONY: logs
 logs:

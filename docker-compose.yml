@@ -7,9 +7,10 @@ services:
       dockerfile: Dockerfile
       args:
         TZ: ${TZ:-Asia/Tokyo}  # Use detected timezone
+        PRODUCT_NAME: ${PRODUCT_NAME}  # Product name for workspace path
     container_name: ${CONTAINER_NAME:-agent-sandbox}
     user: node
-    working_dir: /srv/product  # Changed to product directory
+    working_dir: ${PRODUCT_WORK_DIR}  # Dynamic product directory
     group_add:
       - "0"  # Add node user to root group for Docker socket access
     environment:
@@ -25,10 +26,12 @@ services:
       - HOST_SANDBOX_PATH=${HOST_SANDBOX_PATH}
       - HOST_USERNAME=${HOST_USERNAME}
       - HOST_PRODUCT_PATH=${SOURCE_PATH}
+      - PRODUCT_NAME=${PRODUCT_NAME}
+      - PRODUCT_WORK_DIR=${PRODUCT_WORK_DIR}
       - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - .:/opt/sandbox:delegated  # Sandbox tools mount
-      - ${SOURCE_PATH}:/srv/product  # Product code mount
+      - ${SOURCE_PATH}:${PRODUCT_WORK_DIR}  # Product code mount
       - claude-code-bashhistory:/commandhistory
       - claude-code-config:/home/node/.claude
       - codex-cli-config:/home/node/.codex

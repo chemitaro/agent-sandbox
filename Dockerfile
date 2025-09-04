@@ -3,6 +3,11 @@ FROM ubuntu:24.04
 ARG TZ
 ENV TZ="$TZ"
 
+# Product name for dynamic workspace path
+ARG PRODUCT_NAME
+ENV PRODUCT_NAME="$PRODUCT_NAME"
+ENV PRODUCT_WORK_DIR="/srv/$PRODUCT_NAME"
+
 # Install Node.js 20
 RUN apt update && apt install -y curl && \
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
@@ -74,9 +79,9 @@ ENV TMUX_SESSION_NAME=non-tmux
 
 # Create sandbox and product directories and set permissions
 # /opt/sandbox: Internal sandbox tools (isolated from host)
-# /srv/product: User workspace (mounted from host)
-RUN mkdir -p /opt/sandbox /srv/product /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/nvim && \
-  chown -R node:node /opt/sandbox /srv/product /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config && \
+# /srv/${PRODUCT_NAME}: User workspace (mounted from host)
+RUN mkdir -p /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/nvim && \
+  chown -R node:node /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config && \
   ln -s /home/node/.codex /home/node/.config/codex || true && \
   ln -s /home/node/.gemini /home/node/.config/gemini || true
 
@@ -181,10 +186,10 @@ CMD ["/bin/zsh"]
 #   Contains sandbox tools, scripts, and configurations
 #   Defined as VOLUME to ensure isolation from host filesystem
 # 
-# - /srv/product: Host-mounted directory (changes sync with host)
+# - /srv/${PRODUCT_NAME}: Host-mounted directory (changes sync with host)
 #   Should be mounted from host using bind mount in docker-compose.yml:
 #   volumes:
-#     - ${SOURCE_PATH}:/srv/product
+#     - ${SOURCE_PATH}:/srv/${PRODUCT_NAME}
 #   
 # This ensures sandbox environment modifications stay in container
 # while user workspace changes are preserved on host

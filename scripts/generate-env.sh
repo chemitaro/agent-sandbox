@@ -107,8 +107,10 @@ generate_env_file() {
 # User Configuration
 EOF
     
-    # Extract all environment variables from config (excluding comments and empty lines)
+    # Extract all environment variables from config (excluding comments, empty lines, and PRODUCT_NAME)
+    # PRODUCT_NAME will be handled separately to add PRODUCT_WORK_DIR
     grep -E '^[[:space:]]*[A-Z_][A-Z0-9_]*[[:space:]]*=' "$CONFIG_FILE" | \
+        grep -v '^[[:space:]]*PRODUCT_NAME[[:space:]]*=' | \
         sed 's/[[:space:]]*=[[:space:]]*/=/' >> "$ENV_FILE" || true
     
     # Add TZ if not already set
@@ -130,13 +132,51 @@ EOF
     if [ -n "$source_path" ]; then
         echo "HOST_PRODUCT_PATH=$source_path" >> "$ENV_FILE"
         
-        # Generate CONTAINER_NAME from SOURCE_PATH
+        # Extract PRODUCT_NAME
+        local product_name=$(grep -E '^[[:space:]]*PRODUCT_NAME[[:space:]]*=' "$CONFIG_FILE" | \
+            sed 's/^[^=]*=//' | xargs)
+        if [ -n "$product_name" ]; then
+            echo "PRODUCT_NAME=$product_name" >> "$ENV_FILE"
+            echo "PRODUCT_WORK_DIR=/srv/$product_name" >> "$ENV_FILE"
+        fi
+        
+        # Generate CONTAINER_NAME from SOURCE_PATH and PRODUCT_NAME
         local container_name=$(generate_container_name "$source_path")
+        # If product name exists and is not default, append it to container name
+        if [ -n "$product_name" ] && [ "$product_name" != "product" ]; then
+            container_name="${container_name}-${product_name}"
+        fi
         echo "CONTAINER_NAME=$container_name" >> "$ENV_FILE"
     fi
     
     echo "" >> "$ENV_FILE"
     echo "✅ .env file generated successfully!"
+}
+
+
+# Generate devcontainer.json from template
+generate_devcontainer() {
+    local template_file="$PROJECT_ROOT/.devcontainer/devcontainer-template.json"
+    local output_file="$PROJECT_ROOT/.devcontainer/devcontainer.json"
+    
+    # Check if template exists
+    if [ ! -f "$template_file" ]; then
+        echo "⚠️  Warning: devcontainer template not found, skipping devcontainer generation"
+        return
+    fi
+    
+    # Get PRODUCT_WORK_DIR from .env
+    local product_work_dir=$(grep "^PRODUCT_WORK_DIR=" "$ENV_FILE" | cut -d'=' -f2)
+    
+    if [ -z "$product_work_dir" ]; then
+        echo "⚠️  Warning: PRODUCT_WORK_DIR not found in .env, using default /srv/product"
+        product_work_dir="/srv/product"
+    fi
+    
+    # Replace placeholder with actual value
+    sed "s|{{PRODUCT_WORK_DIR}}|$product_work_dir|g" "$template_file" > "$output_file"
+    
+    echo "✅ devcontainer.json generated with workspaceFolder: $product_work_dir"
 }
 
 # Validate the generated configuration
@@ -166,6 +206,7 @@ validate_config() {
 # Main execution
 main() {
     generate_env_file
+    generate_devcontainer
     
     # Validate if requested (check for --validate argument)
     if [ "$1" = "--validate" ]; then

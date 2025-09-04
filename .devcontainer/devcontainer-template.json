@@ -5,7 +5,7 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "agent-sandbox",
   // 動的に設定される作業ディレクトリ (generate-env.shによって置換)
-  "workspaceFolder": "/srv/product_trial",
+  "workspaceFolder": "{{PRODUCT_WORK_DIR}}",
   
   // 実行中のコンテナを停止しない
   "shutdownAction": "none",

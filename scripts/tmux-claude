@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Unique tmux session for Claude Code
 SESSION_NAME=${SESSION_NAME:-claude}
-WORKDIR=${WORKDIR:-/srv/product}
+WORKDIR=${WORKDIR:-${PRODUCT_WORK_DIR}}
 CLAUDE_BIN=${CLAUDE_BIN:-claude}
 
 quote_args() {

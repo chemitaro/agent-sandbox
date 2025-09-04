@@ -3,3 +3,6 @@ product/*
 !product/.keep
 .env
 sandbox.config
+
+# Auto-generated devcontainer files (template is tracked, generated file is not)
+.devcontainer/devcontainer.json
