@@ -195,25 +195,36 @@ AGENT_SUFFIX := -$(AGENT_NAME)
 # Internal base target for tmux-claude commands (do not call directly)
 .PHONY: _tmux-agent-base
 _tmux-agent-base:
+	@# Determine session name: use provided name or fallback to PRODUCT_NAME
 	@if [ -z "$(SESSION_NAME)" ]; then \
-		echo "❌ Error: $(ERROR_MSG)"; \
-		echo "Usage: make $(USAGE_CMD)"; \
-		echo "Example: make $(EXAMPLE_CMD)"; \
-		exit 1; \
-	fi
-	@# Check if tmux session already exists first
-	@if tmux has-session -t "=$(SESSION_NAME)$(AGENT_SUFFIX)" 2>/dev/null; then \
-		echo "⚠️  Tmux session '$(SESSION_NAME)$(AGENT_SUFFIX)' already exists"; \
-		echo "📎 Attaching to existing session..."; \
-		tmux attach-session -t "=$(SESSION_NAME)$(AGENT_SUFFIX)"; \
+		PRODUCT_NAME=$$(grep "^PRODUCT_NAME=" $(ENV_FILE) 2>/dev/null | cut -d'=' -f2); \
+		if [ -z "$$PRODUCT_NAME" ]; then \
+			echo "❌ Error: No session name provided and PRODUCT_NAME not found in .env"; \
+			echo "Usage: make $(USAGE_CMD) [session-name]"; \
+			echo "   Without session-name: uses PRODUCT_NAME from .env"; \
+			echo "   With session-name: uses provided name"; \
+			echo "Example: make $(EXAMPLE_CMD)"; \
+			exit 1; \
+		fi; \
+		SESSION_BASE="$$PRODUCT_NAME"; \
+		echo "📌 Using project name for session: $$PRODUCT_NAME$(AGENT_SUFFIX)"; \
 	else \
-		echo "🌳 Creating new tmux session '$(SESSION_NAME)$(AGENT_SUFFIX)'..."; \
-		tmux new-session -d -s "$(SESSION_NAME)$(AGENT_SUFFIX)"; \
-		tmux send-keys -t "=$(SESSION_NAME)$(AGENT_SUFFIX):" "cd $(GIT_ROOT) && make start" Enter; \
+		SESSION_BASE="$(SESSION_NAME)"; \
+	fi; \
+	FULL_SESSION_NAME="$$SESSION_BASE$(AGENT_SUFFIX)"; \
+	\
+	if tmux has-session -t "=$$FULL_SESSION_NAME" 2>/dev/null; then \
+		echo "⚠️  Tmux session '$$FULL_SESSION_NAME' already exists"; \
+		echo "📎 Attaching to existing session..."; \
+		tmux attach-session -t "=$$FULL_SESSION_NAME"; \
+	else \
+		echo "🌳 Creating new tmux session '$$FULL_SESSION_NAME'..."; \
+		tmux new-session -d -s "$$FULL_SESSION_NAME"; \
+		tmux send-keys -t "=$$FULL_SESSION_NAME:" "cd $(GIT_ROOT) && make start" Enter; \
 		sleep 3; \
-		tmux send-keys -t "=$(SESSION_NAME)$(AGENT_SUFFIX):" "$(CLAUDE_CMD)" Enter; \
+		tmux send-keys -t "=$$FULL_SESSION_NAME:" "$(CLAUDE_CMD)" Enter; \
 		echo "📎 Attaching to new session..."; \
-		tmux attach-session -t "=$(SESSION_NAME)$(AGENT_SUFFIX)"; \
+		tmux attach-session -t "=$$FULL_SESSION_NAME"; \
 	fi
 
 # Tmux session with Claude (simple)
@@ -222,9 +233,9 @@ tmux-claude:
 	@$(MAKE) _tmux-agent-base \
 		SESSION_NAME="$(SESSION_NAME)" \
 		AGENT_NAME="claude" \
-		ERROR_MSG="Session name is required" \
-		USAGE_CMD="tmux-claude <session-name>" \
-		EXAMPLE_CMD="tmux-claude my-project" \
+		ERROR_MSG="Session name is optional" \
+		USAGE_CMD="tmux-claude [session-name]" \
+		EXAMPLE_CMD="tmux-claude or tmux-claude my-project" \
 		CLAUDE_CMD="echo '📂 Working in product directory' && tmux-claude"
 
 # Tmux session with Claude for worktree
@@ -244,9 +255,9 @@ tmux-codex:
 	@$(MAKE) _tmux-agent-base \
 		SESSION_NAME="$(SESSION_NAME)" \
 		AGENT_NAME="codex" \
-		ERROR_MSG="Session name is required" \
-		USAGE_CMD="tmux-codex <session-name>" \
-		EXAMPLE_CMD="tmux-codex my-project" \
+		ERROR_MSG="Session name is optional" \
+		USAGE_CMD="tmux-codex [session-name]" \
+		EXAMPLE_CMD="tmux-codex or tmux-codex my-project" \
 		CLAUDE_CMD="echo '📂 Working in product directory' && tmux-codex"
 
 # Tmux session with Codex for worktree
@@ -288,9 +299,9 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make claude        - Start Claude Code session"
-	@echo "  make tmux-claude <name>     - Start tmux session with Claude in product directory"
+	@echo "  make tmux-claude [name]     - Start tmux session with Claude (default: PRODUCT_NAME-claude)"
 	@echo "  make tmux-claude-wt <name>  - Start tmux session with Claude in specific worktree"
-	@echo "  make tmux-codex <name>      - Start tmux session with Codex in product directory"
+	@echo "  make tmux-codex [name]      - Start tmux session with Codex (default: PRODUCT_NAME-codex)"
 	@echo "  make tmux-codex-wt <name>   - Start tmux session with Codex in specific worktree"
 	@echo "      Note: tmux session names end with '-<agent>' (e.g., <name>-claude, <name>-codex)"
 	@echo "────────────────────────────────────"
