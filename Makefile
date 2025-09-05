@@ -153,7 +153,7 @@ logs:
 	@docker-compose logs -f agent-sandbox
 
 .PHONY: restart
-restart:
+restart: validate-config
 	@echo "🔄 Restarting Claude Code Sandbox..."
 	@docker-compose restart
 
@@ -163,13 +163,13 @@ status:
 	@docker-compose ps
 
 .PHONY: build
-build:
+build: validate-config
 	@echo "🔨 Building Claude Code Sandbox image..."
 	@docker-compose build --no-cache
 	@echo "✅ Build completed."
 
 .PHONY: rebuild
-rebuild:
+rebuild: validate-config
 	@echo "🔄 Rebuilding and restarting Claude Code Sandbox..."
 	@docker-compose down
 	@docker-compose build --no-cache
