@@ -16,6 +16,10 @@ GIT_ROOT := $(shell git rev-parse --show-toplevel 2>/dev/null || echo $(CURRENT_
 # Default values
 SOURCE_PATH ?= $(HOME)/workspace/product
 
+
+# Docker Compose command with Git read-only overrides
+DOCKER_COMPOSE := docker-compose -f docker-compose.yml -f docker-compose.git-ro.yml
+
 # Export environment variables for Docker Compose
 export HOST_SANDBOX_PATH := $(GIT_ROOT)
 export HOST_USERNAME := $(CURRENT_USER)
@@ -90,12 +94,12 @@ start: validate-config
 			echo "✅ Container is already running"; \
 		else \
 			echo "🔄 Container exists but stopped. Starting it..."; \
-			docker-compose start; \
+			$(DOCKER_COMPOSE) start; \
 			sleep 2; \
 		fi \
 	else \
 		echo "🚀 Starting Claude Code Sandbox..."; \
-		docker-compose up -d --build; \
+		$(DOCKER_COMPOSE) up -d --build; \
 		echo "⏳ Waiting for container to be ready..."; \
 		sleep 2; \
 	fi
@@ -103,7 +107,7 @@ start: validate-config
 	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
 	echo "📍 Host tmux session: $$TMUX_SESSION"; \
 	PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) | cut -d'=' -f2); \
-	docker-compose exec \
+	$(DOCKER_COMPOSE) exec \
 		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
 		-w $$PRODUCT_WORK_DIR \
 		agent-sandbox /bin/zsh
@@ -112,14 +116,14 @@ start: validate-config
 .PHONY: up
 up: validate-config
 	@echo "🚀 Starting Claude Code Sandbox..."
-	@docker-compose down 2>/dev/null || true
-	@docker-compose up -d
+	@$(DOCKER_COMPOSE) down 2>/dev/null || true
+	@$(DOCKER_COMPOSE) up -d
 	@echo "✅ Container started. Run 'make shell' to connect."
 
 .PHONY: down
 down:
 	@echo "🛑 Stopping Claude Code Sandbox..."
-	@docker-compose down
+	@$(DOCKER_COMPOSE) down
 
 .PHONY: shell
 shell:
@@ -127,7 +131,7 @@ shell:
 	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
 	echo "📍 Host tmux session: $$TMUX_SESSION"; \
 	PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) | cut -d'=' -f2); \
-	docker-compose exec \
+	$(DOCKER_COMPOSE) exec \
 		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
 		-w $$PRODUCT_WORK_DIR \
 		agent-sandbox /bin/zsh
@@ -137,7 +141,7 @@ shell-sandbox:
 	@echo "🔗 Connecting to sandbox directory..."
 	@TMUX_SESSION=$$($(TMUX_SESSION_SCRIPT) 2>/dev/null || echo "non-tmux"); \
 	echo "📍 Host tmux session: $$TMUX_SESSION"; \
-	docker-compose exec \
+	$(DOCKER_COMPOSE) exec \
 		-e TMUX_SESSION_NAME="$$TMUX_SESSION" \
 		agent-sandbox /bin/zsh
 
@@ -146,34 +150,34 @@ shell-product:
 	@echo "⚠️  Note: 'shell-product' is deprecated. Use 'shell' instead."
 	@echo "🔗 Connecting to product directory..."
 	@PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) 2>/dev/null | cut -d'=' -f2 || echo "/srv/product"); \
-	docker-compose exec -w $$PRODUCT_WORK_DIR agent-sandbox /bin/zsh
+	$(DOCKER_COMPOSE) exec -w $$PRODUCT_WORK_DIR agent-sandbox /bin/zsh
 
 .PHONY: logs
 logs:
-	@docker-compose logs -f agent-sandbox
+	@$(DOCKER_COMPOSE) logs -f agent-sandbox
 
 .PHONY: restart
 restart: validate-config
 	@echo "🔄 Restarting Claude Code Sandbox..."
-	@docker-compose restart
+	@$(DOCKER_COMPOSE) restart
 
 .PHONY: status
 status:
 	@echo "📊 Container Status:"
-	@docker-compose ps
+	@$(DOCKER_COMPOSE) ps
 
 .PHONY: build
 build: validate-config
 	@echo "🔨 Building Claude Code Sandbox image..."
-	@docker-compose build --no-cache
+	@$(DOCKER_COMPOSE) build --no-cache
 	@echo "✅ Build completed."
 
 .PHONY: rebuild
 rebuild: validate-config
 	@echo "🔄 Rebuilding and restarting Claude Code Sandbox..."
-	@docker-compose down
-	@docker-compose build --no-cache
-	@docker-compose up -d
+	@$(DOCKER_COMPOSE) down
+	@$(DOCKER_COMPOSE) build --no-cache
+	@$(DOCKER_COMPOSE) up -d
 	@echo "✅ Container rebuilt and started. Run 'make shell' to connect."
 
 # Claude Assistant (kept from original)
@@ -304,6 +308,7 @@ help:
 	@echo "  make tmux-codex [name]      - Start tmux session with Codex (default: PRODUCT_NAME-codex)"
 	@echo "  make tmux-codex-wt <name>   - Start tmux session with Codex in specific worktree"
 	@echo "      Note: tmux session names end with '-<agent>' (e.g., <name>-claude, <name>-codex)"
+	@echo "  Git metadata is read-only inside the container; commits must be run on the host"
 	@echo "────────────────────────────────────"
 
 # Default target

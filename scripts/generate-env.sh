@@ -155,6 +155,42 @@ EOF
 
 
 # Generate devcontainer.json from template
+
+# Generate Git read-only override compose file
+generate_git_overrides() {
+    local overrides_file="$PROJECT_ROOT/docker-compose.git-ro.yml"
+    local source_path=$(grep "^SOURCE_PATH=" "$ENV_FILE" | cut -d'=' -f2)
+    local product_work_dir=$(grep "^PRODUCT_WORK_DIR=" "$ENV_FILE" | cut -d'=' -f2)
+
+    if [ -z "$source_path" ]; then
+        echo "⚠️  Warning: SOURCE_PATH not set; writing empty Git override"
+        cat > "$overrides_file" <<'YAML'
+version: "3.8"
+services:
+  agent-sandbox:
+    volumes: []
+YAML
+        return
+    fi
+
+    if [ -z "$product_work_dir" ]; then
+        product_work_dir="/srv/product"
+    fi
+
+    if [ ! -x "$PROJECT_ROOT/scripts/generate-git-ro-overrides.sh" ]; then
+        echo "⚠️  Warning: Git override script not executable; writing empty override"
+        cat > "$overrides_file" <<'YAML'
+version: "3.8"
+services:
+  agent-sandbox:
+    volumes: []
+YAML
+        return
+    fi
+
+    $PROJECT_ROOT/scripts/generate-git-ro-overrides.sh "$source_path" "$product_work_dir" "$overrides_file"
+}
+
 generate_devcontainer() {
     local template_file="$PROJECT_ROOT/.devcontainer/devcontainer-template.json"
     local output_file="$PROJECT_ROOT/.devcontainer/devcontainer.json"
@@ -207,6 +243,7 @@ validate_config() {
 main() {
     generate_env_file
     generate_devcontainer
+    generate_git_overrides
     
     # Validate if requested (check for --validate argument)
     if [ "$1" = "--validate" ]; then

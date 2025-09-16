@@ -92,6 +92,11 @@ tmux-codex    # Unique Codex CLI session named "codex"
 # - Otherwise create the session in /srv/${PRODUCT_NAME} and start the tool
 ```
 
+### Git access inside the container
+- `.git`メタデータは自動で読み取り専用にマウントされるため、`git commit`/`merge`/`push`などの書き込み系コマンドはPermission deniedになります。
+- `git status`や`git diff`などの参照系コマンドは利用できます。
+- 変更はコンテナ内で編集し、コミットやプッシュはホスト側のターミナルから実行してください。
+
 See [CLAUDE.md](./CLAUDE.md) for detailed usage instructions.
 
 ### VS Code Devcontainer Usage

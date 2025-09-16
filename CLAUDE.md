@@ -123,6 +123,7 @@ tmux attach -t backend-api
 - インタラクティブな操作が必要な場合は`make shell`を案内
 
 ### 3. Git操作
+> 🛡️ コンテナ内ではGitメタデータが読み取り専用にマウントされるため、`git commit`や`git push`などの書き込み系コマンドはPermission deniedになります。コードの閲覧や`git status`/`git diff`など参照系コマンドは引き続き利用できます。コミットやプッシュはホスト環境から行ってください。
 ```bash
 # コミット作成（自動的にCo-Authored-Byが追加される）
 git add .
