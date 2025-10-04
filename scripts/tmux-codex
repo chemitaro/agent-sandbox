@@ -6,7 +6,7 @@ SESSION_NAME=${SESSION_NAME:-codex}
 WORKDIR=${WORKDIR:-${PRODUCT_WORK_DIR}}
 CODEX_BIN=${CODEX_BIN:-codex}
 # Default options can be overridden via env
-CODEX_DEFAULT_OPTS=${CODEX_DEFAULT_OPTS:---ask-for-approval never --sandbox danger-full-access}
+CODEX_DEFAULT_OPTS=${CODEX_DEFAULT_OPTS:-resume}
 
 quote_args() {
   local out=""

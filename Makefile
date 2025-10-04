@@ -273,7 +273,7 @@ tmux-codex-wt:
 		ERROR_MSG="Worktree name is required" \
 		USAGE_CMD="tmux-codex-wt <worktree-name>" \
 		EXAMPLE_CMD="tmux-codex-wt feature-auth" \
-		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex --ask-for-approval never --sandbox danger-full-access"
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex resume"
 
 # Help command
 .PHONY: help
