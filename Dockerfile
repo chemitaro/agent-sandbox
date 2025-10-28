@@ -143,12 +143,6 @@ USER root
 # Install Cursor CLI
 RUN curl https://cursor.com/install -fsS | bash
 
-# Install Claude Code (Native Install)
-# Run as node user to install in correct home directory
-USER node
-RUN curl -fsSL https://claude.ai/install.sh | bash
-USER root
-
 # Copy and set up scripts
 COPY scripts/init-firewall.sh /usr/local/bin/
 COPY scripts/docker-entrypoint.sh /usr/local/bin/

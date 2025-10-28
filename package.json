@@ -8,9 +8,10 @@
     "npm": ">=10.0.0"
   },
   "dependencies": {
-    "@google/gemini-cli": "^1.0.0",
-    "@sasazame/ccresume": "latest",
-    "@openai/codex": "^0.21.0"
+    "@openai/codex": "latest",
+    "@anthropic-ai/claude-code": "latest",
+    "@google/gemini-cli": "latest",
+    "@sasazame/ccresume": "latest"
   },
   "scripts": {
     "install-global": "npm install -g @google/gemini-cli @sasazame/ccresume @openai/codex",
