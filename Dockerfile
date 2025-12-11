@@ -47,7 +47,8 @@ RUN apt update && apt install -y less \
   gosu \
   neovim \
   tree \
-  tmux
+  tmux \
+  make
 
 # Install Docker CLI and Compose plugin (Docker-on-Docker approach)
 RUN curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg && \
