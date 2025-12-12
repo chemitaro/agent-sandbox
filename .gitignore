@@ -1,7 +1,10 @@
 # productディレクトリ内のファイルは無視するが、ディレクトリ自体は保持
 product/*
 !product/.keep
-.agent-home/
+
+# Local agent settings (git-ignored, keep placeholder tracked)
+.agent-home/*
+!.agent-home/.keep
 .env
 sandbox.config
 
