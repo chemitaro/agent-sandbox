@@ -32,10 +32,10 @@ services:
     volumes:
       - .:/opt/sandbox:delegated  # Sandbox tools mount
       - ${SOURCE_PATH}:${PRODUCT_WORK_DIR}  # Product code mount
-      - claude-code-bashhistory:/commandhistory
-      - claude-code-config:/home/node/.claude
-      - codex-cli-config:/home/node/.codex
-      - gemini-cli-config:/home/node/.gemini
+      - ./.agent-home/commandhistory:/commandhistory
+      - ./.agent-home/.claude:/home/node/.claude
+      - ./.agent-home/.codex:/home/node/.codex
+      - ./.agent-home/.gemini:/home/node/.gemini
       # Docker socket for Docker-on-Docker
       - /var/run/docker.sock:/var/run/docker.sock
       # Host sandbox path for Docker operations
@@ -49,16 +49,4 @@ services:
     tty: true
     init: true
 
-volumes:
-  claude-code-bashhistory:
-    name: claude-code-bashhistory
-    external: true
-  claude-code-config:
-    name: claude-code-config
-    external: true
-  codex-cli-config:
-    name: codex-cli-config
-    external: true
-  gemini-cli-config:
-    name: gemini-cli-config
-    external: true
+ 

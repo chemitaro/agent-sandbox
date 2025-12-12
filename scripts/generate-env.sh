@@ -15,6 +15,18 @@ CONFIG_FILE="$PROJECT_ROOT/sandbox.config"
 ENV_FILE="$PROJECT_ROOT/.env"
 EXAMPLE_FILE="$PROJECT_ROOT/sandbox.config.example"
 
+# Local agent config root (git-ignored). These dirs are bind-mounted into the container.
+AGENT_HOME_DIR="$PROJECT_ROOT/.agent-home"
+
+# Ensure local agent config directories exist before compose starts.
+ensure_agent_home_dirs() {
+    mkdir -p \
+        "$AGENT_HOME_DIR/.claude" \
+        "$AGENT_HOME_DIR/.codex" \
+        "$AGENT_HOME_DIR/.gemini" \
+        "$AGENT_HOME_DIR/commandhistory"
+}
+
 # Detect timezone
 detect_timezone() {
     if [ -n "$TZ" ]; then
@@ -241,6 +253,7 @@ validate_config() {
 
 # Main execution
 main() {
+    ensure_agent_home_dirs
     generate_env_file
     generate_devcontainer
     generate_git_overrides

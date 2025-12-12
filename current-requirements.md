@@ -21,8 +21,10 @@
 1. **非rootユーザー実行**: `node`ユーザー（UID: 1000）でClaude Codeを実行
 2. **ネットワーク制限**: iptablesとipsetを使用して、許可されたドメインのみアクセス可能
 3. **ボリュームマウント**:
-   - `claude-code-bashhistory`: bashの履歴を永続化
-   - `claude-code-config`: Claude Codeの設定を永続化
+   - `.agent-home/commandhistory`: bashの履歴をプロジェクト単位で永続化
+   - `.agent-home/.claude`: Claude Codeの設定をプロジェクト単位で永続化
+   - `.agent-home/.codex`: Codex CLIの設定をプロジェクト単位で永続化
+   - `.agent-home/.gemini`: Gemini CLIの設定をプロジェクト単位で永続化
    - `workspace`: 作業ディレクトリのバインドマウント
    - `product`: 外部ディレクトリの読み取り専用マウント
 4. **開発ツール**: git, zsh, fzf, delta等の開発ツールを事前インストール
@@ -81,7 +83,7 @@
 ### 4.1 docker-compose.yml の構成
 
 ```yaml
-version: '3.8'
+name: ${CONTAINER_NAME:-agent-sandbox}
 
 services:
   agent-sandbox:
@@ -89,20 +91,26 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        TZ: ${TZ:-America/Los_Angeles}
-    container_name: agent-sandbox
+        TZ: ${TZ:-Asia/Tokyo}
+        PRODUCT_NAME: ${PRODUCT_NAME}
+    container_name: ${CONTAINER_NAME:-agent-sandbox}
     user: node
-    working_dir: /workspace
+    working_dir: ${PRODUCT_WORK_DIR}
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
       - CLAUDE_CONFIG_DIR=/home/node/.claude
-      - POWERLEVEL9K_DISABLE_GITSTATUS=true
+      - CODEX_CONFIG_DIR=/home/node/.codex
+      - GEMINI_CONFIG_DIR=/home/node/.gemini
       - DEVCONTAINER=true
+      - TZ=${TZ}
     volumes:
-      - .:/workspace:delegated
-      - claude-code-bashhistory:/commandhistory
-      - claude-code-config:/home/node/.claude
-      - ${SOURCE_PATH}:/workspace/product:ro
+      - .:/opt/sandbox:delegated
+      - ${SOURCE_PATH}:${PRODUCT_WORK_DIR}
+      - ./.agent-home/commandhistory:/commandhistory
+      - ./.agent-home/.claude:/home/node/.claude
+      - ./.agent-home/.codex:/home/node/.codex
+      - ./.agent-home/.gemini:/home/node/.gemini
+      - /var/run/docker.sock:/var/run/docker.sock
     cap_add:
       - NET_ADMIN
       - NET_RAW
@@ -113,9 +121,6 @@ services:
     tty: true
     init: true
 
-volumes:
-  claude-code-bashhistory:
-  claude-code-config:
 ```
 
 ### 4.2 devcontainer.json の修正
