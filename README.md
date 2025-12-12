@@ -41,16 +41,34 @@ vim sandbox.config  # or your preferred editor
 **PRODUCT_NAME Setting**
 `PRODUCT_NAME` in sandbox.config determines the workspace directory:
 - Default value is `product` (creates `/srv/product`)
-- Change it to create isolated environments for different projects
-- Each project gets its own Claude Code and Codex CLI settings
+- Change it to set the container workspace directory
+- Agent configs and shell history are persisted on the host under `.agent-home/` (git-ignored)
+- Settings are isolated per sandbox repository; for fully separate settings per product, use separate sandbox clones
 - Example: `PRODUCT_NAME = frontend` creates `/srv/frontend` workspace
+
+### Local agent settings (`.agent-home/`)
+
+This sandbox no longer uses shared/external Docker volumes for agent configs.  
+Instead, it bind-mounts host-local folders under `.agent-home/`:
+
+- `.agent-home/.claude` → `/home/node/.claude`
+- `.agent-home/.codex` → `/home/node/.codex`
+- `.agent-home/.gemini` → `/home/node/.gemini`
+- `.agent-home/commandhistory` → `/commandhistory`
+
+`.agent-home/` is created automatically by `make generate-env` (run implicitly by `make start/build/up/rebuild`).  
+On first use, each CLI generates its config into these folders, and subsequent runs reuse them.  
+
+If you are upgrading from an older version, you may have existing Docker volumes
+(`claude-code-config`, `codex-cli-config`, `gemini-cli-config`, `claude-code-bashhistory`);
+copy their contents once into `.agent-home/` before starting the container.
 
 4. Quick start - start container and connect:
 ```sh
 make start
 # This will:
 # - Validate configuration
-# - Auto-generate .env from sandbox.config
+# - Auto-generate .env and ensure .agent-home folders
 # - Start the container if not running
 # - Connect to /srv/${PRODUCT_NAME} directory (configured in sandbox.config)
 ```
