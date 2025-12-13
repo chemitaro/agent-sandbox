@@ -1,0 +1,33 @@
+projects = { "/srv/product" = { trust_level = "trusted" }, "/srv/product/taikyohiyou_project_issue-1319" = { trust_level = "trusted" } }
+
+model = "gpt-5.2"
+sandbox_mode = "danger-full-access"
+approval_policy = "never"
+
+preferred_auth_method = "chatgpt"
+
+
+# （任意）要約出力のスタイル。gpt-5 は "detailed" が安定です
+model_reasoning_summary = "detailed"
+
+notify = ["slack-notify"]
+model_reasoning_effort = "xhigh"
+
+[features]
+web_search_request = true
+
+[shell_environment_policy]
+inherit = "all"
+ignore_default_excludes = true
+
+[mcp_servers.context7]
+command = "npx"
+args = ["-y", "@upstash/context7-mcp"]
+
+[mcp_servers.serena]
+command = "uvx"
+args = ["--from", "git+https://github.com/oraios/serena", "serena", "start-mcp-server", "--context", "codex"]
+
+[notice]
+hide_gpt5_1_migration_prompt = true
+"hide_gpt-5.1-codex-max_migration_prompt" = true

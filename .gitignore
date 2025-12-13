@@ -5,6 +5,11 @@ product/*
 # Local agent settings (git-ignored, keep placeholder tracked)
 .agent-home/*
 !.agent-home/.keep
+!.agent-home/.codex/
+.agent-home/.codex/*
+!.agent-home/.codex/config.toml
+!.agent-home/.codex/AGENTS.md
+!.agent-home/.codex/prompts/
 .env
 sandbox.config
 
