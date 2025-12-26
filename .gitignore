@@ -10,6 +10,7 @@ product/*
 !.agent-home/.codex/config.toml
 !.agent-home/.codex/AGENTS.md
 !.agent-home/.codex/prompts/
+!.agent-home/.codex/rules/
 .env
 sandbox.config
 

@@ -1,0 +1,6 @@
+prefix_rule(pattern=["curl"], decision="allow")
+prefix_rule(pattern=["gh", "issue", ["list", "view"]], decision="allow")
+prefix_rule(pattern=["gh", "run", ["list", "view"]], decision="allow")
+prefix_rule(pattern=["gh", "workflow", ["list", "view"]], decision="allow")
+prefix_rule(pattern=["git", "push"], decision="prompt")
+prefix_rule(pattern=["git", "merge"], decision="prompt")
