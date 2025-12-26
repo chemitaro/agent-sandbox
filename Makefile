@@ -17,8 +17,8 @@ GIT_ROOT := $(shell git rev-parse --show-toplevel 2>/dev/null || echo $(CURRENT_
 SOURCE_PATH ?= $(HOME)/workspace/product
 
 
-# Docker Compose command with Git read-only overrides
-DOCKER_COMPOSE := docker-compose -f docker-compose.yml -f docker-compose.git-ro.yml
+# Docker Compose command (Git metadata is writable by default)
+DOCKER_COMPOSE := docker-compose -f docker-compose.yml
 
 # Export environment variables for Docker Compose
 export HOST_SANDBOX_PATH := $(GIT_ROOT)

@@ -2,5 +2,15 @@ prefix_rule(pattern=["curl"], decision="allow")
 prefix_rule(pattern=["gh", "issue", ["list", "view"]], decision="allow")
 prefix_rule(pattern=["gh", "run", ["list", "view"]], decision="allow")
 prefix_rule(pattern=["gh", "workflow", ["list", "view"]], decision="allow")
-prefix_rule(pattern=["git", "push"], decision="prompt")
-prefix_rule(pattern=["git", "merge"], decision="prompt")
+prefix_rule(
+    pattern = ["git", ["add", "commit"]],
+    decision = "allow",
+    match = [["git", "add", "-A"], ["git", "commit", "-m", "msg"]],
+    not_match = [["git", "push", "origin", "main"], ["git", "merge", "main"]],
+)
+prefix_rule(
+    pattern = ["git", ["push", "merge"]],
+    decision = "forbidden",
+    match = [["git", "push", "origin", "main"], ["git", "merge", "main"]],
+    not_match = [["git", "status"], ["git", "commit", "-m", "msg"]],
+)

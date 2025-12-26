@@ -256,7 +256,7 @@ main() {
     ensure_agent_home_dirs
     generate_env_file
     generate_devcontainer
-    generate_git_overrides
+    # Git metadata is writable by default (no read-only .git overrides).
     
     # Validate if requested (check for --validate argument)
     if [ "$1" = "--validate" ]; then

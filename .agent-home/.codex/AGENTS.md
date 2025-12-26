@@ -14,7 +14,5 @@
 
 The following Git commands are prohibited (may cause destructive changes):
 
-- `git add` - Adding files to staging
-- `git commit` - Creating commits
 - `git push` - Pushing to remote
 - `git merge` - Merging branches
