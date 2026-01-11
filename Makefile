@@ -186,6 +186,13 @@ claude:
 	@echo "🤖 Starting Claude session..."
 	@claude --dangerously-skip-permissions
 
+# pre-commit (via uvx in the container)
+.PHONY: pre-commit-install
+pre-commit-install: validate-config
+	@echo "🪝 Installing pre-commit hook in the product repo..."
+	@PRODUCT_WORK_DIR=$$(grep "^PRODUCT_WORK_DIR=" $(ENV_FILE) | cut -d'=' -f2); \
+	$(DOCKER_COMPOSE) exec -w $$PRODUCT_WORK_DIR agent-sandbox bash -lc "set -euo pipefail; pre-commit install; hook_path=\"$$(git rev-parse --git-path hooks/pre-commit)\"; if [ -f \"$$hook_path\" ]; then sed -i 's|^[[:space:]]*exec pre-commit |exec uvx --managed-python --python 3.12 --from pre-commit pre-commit |' \"$$hook_path\"; fi"
+
 # Get session name from command line arguments
 # - Filter out tmux wrapper targets and the internal base target
 # - SESSION_NAME represents the base name (without agent suffix)

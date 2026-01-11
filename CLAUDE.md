@@ -97,6 +97,23 @@ uv add fastapi uvicorn
 uv run python main.py
 ```
 
+### 3.1 pre-commit（フック導入）
+
+`pre-commit install` は `.git/hooks` に書き込みます。  
+このSandboxでは `pre-commit` コマンドは **uvx 経由**で提供しています（Pythonは uv-managed / 3.12）。
+
+```bash
+# ホスト側（推奨）: コンテナ内で pre-commit install まで実行し、フックのfallbackもuvxに寄せる
+make pre-commit-install
+
+# コンテナ内で直接（同等）
+pre-commit install
+```
+
+注意:
+- フックは **ホスト側の `git commit`** でも実行されます。`make pre-commit-install` はホスト実行時のfallbackを `uvx` に寄せるため、ホスト側にも `uv`（= `uvx`）が必要です。
+- もし挙動が不安定なら `PRE_COMMIT_VERSION` を指定してバージョン固定してください（`sandbox.config` → `.env` 経由で渡せます）。
+
 ### 4. 複数プロジェクトの並行作業
 ```bash
 # セッション1

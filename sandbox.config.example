@@ -39,6 +39,10 @@ PRODUCT_NAME = product
 # 作成方法: Google AI Studio (https://aistudio.google.com/app/apikey)
 # GEMINI_API_KEY = your-gemini-api-key
 
+# pre-commit のバージョン固定（任意）
+# uvx 経由で pre-commit を使います。必要なら x.y.z を指定してください。
+# PRE_COMMIT_VERSION = x.y.z
+
 # Slack通知設定
 # Incoming Webhook URLを設定してください
 # 作成方法: https://api.slack.com/messaging/webhooks

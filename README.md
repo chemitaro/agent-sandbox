@@ -115,6 +115,12 @@ tmux-codex    # Unique Codex CLI session named "codex"
 - `git status`や`git diff`などの参照系コマンドは利用できます。
 - 変更はコンテナ内で編集し、コミットやプッシュはホスト側のターミナルから実行してください。
 
+### pre-commit
+開発対象リポジトリで `pre-commit` を使う場合は、フック導入までまとめて実行できます：
+```sh
+make pre-commit-install
+```
+
 See [CLAUDE.md](./CLAUDE.md) for detailed usage instructions.
 
 ### VS Code Devcontainer Usage

@@ -24,6 +24,8 @@ ensure_agent_home_dirs() {
         "$AGENT_HOME_DIR/.claude" \
         "$AGENT_HOME_DIR/.codex" \
         "$AGENT_HOME_DIR/.gemini" \
+        "$AGENT_HOME_DIR/.cache/uv" \
+        "$AGENT_HOME_DIR/.cache/pre-commit" \
         "$AGENT_HOME_DIR/commandhistory"
 }
 

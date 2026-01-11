@@ -132,6 +132,32 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 # Ensure uv and claude are in PATH
 ENV PATH="/home/node/.local/bin:$PATH"
 
+# Prefer uv-managed Python and pin to Python 3.12 (latest stable) for tools like pre-commit
+ENV UV_MANAGED_PYTHON=1
+ENV UV_PYTHON=3.12
+ENV PRE_COMMIT_HOME=/home/node/.cache/pre-commit
+
+# Pre-install uv-managed Python to avoid runtime downloads (especially under firewall restrictions)
+RUN uv python install 3.12 --default
+
+# Provide a `pre-commit` command via uvx (fallback to `uv tool run` if uvx is unavailable)
+RUN cat > /home/node/.local/bin/pre-commit <<'SH' && chmod +x /home/node/.local/bin/pre-commit
+#!/usr/bin/env bash
+set -euo pipefail
+
+PY="${UV_PYTHON:-3.12}"
+FROM="pre-commit"
+if [ -n "${PRE_COMMIT_VERSION:-}" ]; then
+  FROM="pre-commit==${PRE_COMMIT_VERSION}"
+fi
+
+if command -v uvx >/dev/null 2>&1; then
+  exec uvx --managed-python --python "$PY" --from "$FROM" pre-commit "$@"
+fi
+
+exec uv tool run --managed-python --python "$PY" --from "$FROM" pre-commit "$@"
+SH
+
 # Codex CLI config directory (persisted via volume)
 ENV CODEX_CONFIG_DIR=/home/node/.codex
 

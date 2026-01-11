@@ -36,6 +36,8 @@ services:
       - ./.agent-home/.claude:/home/node/.claude
       - ./.agent-home/.codex:/home/node/.codex
       - ./.agent-home/.gemini:/home/node/.gemini
+      - ./.agent-home/.cache/uv:/home/node/.cache/uv
+      - ./.agent-home/.cache/pre-commit:/home/node/.cache/pre-commit
       # Docker socket for Docker-on-Docker
       - /var/run/docker.sock:/var/run/docker.sock
       # Host sandbox path for Docker operations
