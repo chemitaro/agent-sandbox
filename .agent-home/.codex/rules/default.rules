@@ -9,6 +9,14 @@ prefix_rule(pattern=["gh", "issue", ["list", "view"]], decision="allow")
 prefix_rule(pattern=["gh", "run", ["list", "view"]], decision="allow")
 prefix_rule(pattern=["gh", "workflow", ["list", "view"]], decision="allow")
 
+# Git hooks を無視する commit は禁止
+prefix_rule(
+    pattern = ["git", "commit", ["-n", "--no-verify"]],
+    decision = "forbidden",
+    match = [["git", "commit", "-n", "-m", "msg"], ["git", "commit", "--no-verify", "-m", "msg"]],
+    not_match = [["git", "commit", "-m", "msg"]],
+)
+
 # Git basics are allowed
 prefix_rule(
     pattern = ["git", ["add", "commit"]],
