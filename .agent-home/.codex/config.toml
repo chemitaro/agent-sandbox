@@ -7,8 +7,7 @@ approval_policy = "never"
 preferred_auth_method = "chatgpt"
 
 
-# （任意）要約出力のスタイル。gpt-5 は "detailed" が安定です
-model_reasoning_summary = "detailed"
+model_reasoning_summary = "none"
 
 notify = ["slack-notify"]
 model_reasoning_effort = "xhigh"
