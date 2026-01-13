@@ -2,6 +2,9 @@
 product/*
 !product/.keep
 
+# macOS
+.DS_Store
+
 # Local agent settings (git-ignored, keep placeholder tracked)
 .agent-home/*
 !.agent-home/.keep
