@@ -11,11 +11,12 @@
     "@openai/codex": "latest",
     "@anthropic-ai/claude-code": "latest",
     "@google/gemini-cli": "latest",
-    "@sasazame/ccresume": "latest"
+    "@sasazame/ccresume": "latest",
+    "opencode-ai": "latest"
   },
   "scripts": {
-    "install-global": "npm install -g @google/gemini-cli @sasazame/ccresume @openai/codex",
-    "verify": "claude --version && gemini --version && npx -y @openai/codex --version"
+    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli @sasazame/ccresume @openai/codex opencode-ai",
+    "verify": "claude --version && gemini --version && opencode --version && npx -y @openai/codex --version"
   },
   "keywords": [
     "docker",

@@ -282,6 +282,28 @@ tmux-codex-wt:
 		EXAMPLE_CMD="tmux-codex-wt feature-auth" \
 		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && codex resume"
 
+# Tmux session with OpenCode (simple)
+.PHONY: tmux-opencode
+tmux-opencode:
+	@$(MAKE) _tmux-agent-base \
+		SESSION_NAME="$(SESSION_NAME)" \
+		AGENT_NAME="opencode" \
+		ERROR_MSG="Session name is optional" \
+		USAGE_CMD="tmux-opencode [session-name]" \
+		EXAMPLE_CMD="tmux-opencode or tmux-opencode my-project" \
+		CLAUDE_CMD="echo '📂 Working in product directory' && tmux-opencode"
+
+# Tmux session with OpenCode for worktree
+.PHONY: tmux-opencode-wt
+tmux-opencode-wt:
+	@$(MAKE) _tmux-agent-base \
+		SESSION_NAME="$(SESSION_NAME)" \
+		AGENT_NAME="opencode" \
+		ERROR_MSG="Worktree name is required" \
+		USAGE_CMD="tmux-opencode-wt <worktree-name>" \
+		EXAMPLE_CMD="tmux-opencode-wt feature-auth" \
+		CLAUDE_CMD="echo '📂 Entering worktree: $(SESSION_NAME)' && cd $(SESSION_NAME) && opencode"
+
 # Help command
 .PHONY: help
 help:
@@ -314,6 +336,8 @@ help:
 	@echo "  make tmux-claude-wt <name>  - Start tmux session with Claude in specific worktree"
 	@echo "  make tmux-codex [name]      - Start tmux session with Codex (default: PRODUCT_NAME-codex)"
 	@echo "  make tmux-codex-wt <name>   - Start tmux session with Codex in specific worktree"
+	@echo "  make tmux-opencode [name]   - Start tmux session with OpenCode (default: PRODUCT_NAME-opencode)"
+	@echo "  make tmux-opencode-wt <name> - Start tmux session with OpenCode in specific worktree"
 	@echo "      Note: tmux session names end with '-<agent>' (e.g., <name>-claude, <name>-codex)"
 	@echo "  Git metadata is read-only inside the container; commits must be run on the host"
 	@echo "────────────────────────────────────"

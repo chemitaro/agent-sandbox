@@ -54,6 +54,8 @@ Instead, it bind-mounts host-local folders under `.agent-home/`:
 - `.agent-home/.claude` → `/home/node/.claude`
 - `.agent-home/.codex` → `/home/node/.codex`
 - `.agent-home/.gemini` → `/home/node/.gemini`
+- `.agent-home/.opencode` → `/home/node/.config/opencode`
+- `.agent-home/.opencode-data` → `/home/node/.local/share/opencode`
 - `.agent-home/commandhistory` → `/commandhistory`
 
 `.agent-home/` is created automatically by `make generate-env` (run implicitly by `make start/build/up/rebuild`).  
@@ -97,6 +99,8 @@ claude --dangerously-skip-permissions
 # Or use tmux sessions (from host)
 make tmux-claude my-project      # Start tmux session with Claude
 make tmux-claude-wt feature-xyz  # Start in specific worktree
+make tmux-opencode my-project      # Start tmux session with OpenCode
+make tmux-opencode-wt feature-xyz  # Start in specific worktree
 ```
 
 6. One-command tmux sessions (inside container):
@@ -104,6 +108,7 @@ make tmux-claude-wt feature-xyz  # Start in specific worktree
 # Always attach to a unique session in /srv/${PRODUCT_NAME}
 tmux-claude   # Unique Claude Code session named "claude"
 tmux-codex    # Unique Codex CLI session named "codex"
+tmux-opencode # Unique OpenCode session named "opencode"
 
 # Both commands:
 # - Attach if the session already exists

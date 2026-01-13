@@ -81,8 +81,8 @@ ENV TMUX_SESSION_NAME=non-tmux
 # Create sandbox and product directories and set permissions
 # /opt/sandbox: Internal sandbox tools (isolated from host)
 # /srv/${PRODUCT_NAME}: User workspace (mounted from host)
-RUN mkdir -p /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/nvim && \
-  chown -R node:node /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config && \
+RUN mkdir -p /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/opencode /home/node/.local/share/opencode /home/node/.cache/opencode /home/node/.config/nvim && \
+  chown -R node:node /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config /home/node/.local /home/node/.cache && \
   ln -s /home/node/.codex /home/node/.config/codex || true && \
   ln -s /home/node/.gemini /home/node/.config/gemini || true
 
@@ -164,6 +164,11 @@ ENV CODEX_CONFIG_DIR=/home/node/.codex
 # Gemini CLI config directory (persisted via volume)
 ENV GEMINI_CONFIG_DIR=/home/node/.gemini
 
+# OpenCode config/data/cache directories (persisted via volume)
+ENV OPENCODE_CONFIG_DIR=/home/node/.config/opencode
+ENV OPENCODE_DATA_DIR=/home/node/.local/share/opencode
+ENV OPENCODE_CACHE_DIR=/home/node/.cache/opencode
+
 # Switch back to root for script setup
 USER root
 
@@ -187,7 +192,9 @@ RUN chmod +x /opt/sandbox/scripts/slack-notify.js && \
 RUN printf '#!/usr/bin/env bash\nexec bash /opt/sandbox/scripts/tmux-codex "$@"\n' > /usr/local/bin/tmux-codex && \
     chmod +x /usr/local/bin/tmux-codex && \
     printf '#!/usr/bin/env bash\nexec bash /opt/sandbox/scripts/tmux-claude "$@"\n' > /usr/local/bin/tmux-claude && \
-    chmod +x /usr/local/bin/tmux-claude
+    chmod +x /usr/local/bin/tmux-claude && \
+    printf '#!/usr/bin/env bash\nexec bash /opt/sandbox/scripts/tmux-opencode "$@"\n' > /usr/local/bin/tmux-opencode && \
+    chmod +x /usr/local/bin/tmux-opencode
 
 # Set up Docker environment
 ENV DOCKER_CONFIG=/home/node/.docker
