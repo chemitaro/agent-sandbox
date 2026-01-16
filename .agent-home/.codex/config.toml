@@ -1,16 +1,15 @@
 projects = { "/srv/product" = { trust_level = "trusted" }, "/srv/product/taikyohiyou_project_issue-1319" = { trust_level = "trusted" } }
 
-model = "gpt-5.2-codex"
+model = "gpt-5.2"
+model_reasoning_effort = "xhigh"
 sandbox_mode = "danger-full-access"
 approval_policy = "never"
 
 preferred_auth_method = "chatgpt"
 
-
 model_reasoning_summary = "none"
 
 notify = ["slack-notify"]
-model_reasoning_effort = "xhigh"
 
 [features]
 web_search_request = true
