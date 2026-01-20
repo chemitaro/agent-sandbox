@@ -15,6 +15,7 @@ notify = ["slack-notify"]
 web_search_request = true
 unified_exec = true
 shell_snapshot = true
+steer = true
 
 [shell_environment_policy]
 inherit = "all"

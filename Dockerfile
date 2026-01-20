@@ -17,12 +17,25 @@ RUN apt update && apt install -y curl && \
 RUN groupadd -r node && useradd -r -g node -s /bin/bash -m node
 
 # Install Git latest version from official PPA
-RUN apt update && \
-    DEBIAN_FRONTEND=noninteractive apt install -y software-properties-common && \
-    add-apt-repository ppa:git-core/ppa -y && \
-    apt update && \
-    apt install -y git && \
-    echo "✅ Git version: $(git --version)" && \
+# NOTE: add-apt-repository uses Launchpad API (api.launchpad.net). Some networks block it.
+#       We add the PPA manually via ppa.launchpadcontent.net to avoid the API dependency.
+RUN set -eux; \
+    apt update; \
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends ca-certificates curl gnupg; \
+    codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"; \
+    ppa_base="https://ppa.launchpadcontent.net/git-core/ppa/ubuntu"; \
+    tmpdir="$(mktemp -d)"; \
+    curl -fsSL "$ppa_base/dists/$codename/Release.gpg" -o "$tmpdir/Release.gpg"; \
+    signer="$(gpg --list-packets "$tmpdir/Release.gpg" 2>/dev/null | awk '/issuer fpr v4/ {print $NF; exit} /issuer key ID/ {print $NF; exit} /keyid/ {gsub(/^0x/,"",$NF); print $NF; exit}')"; \
+    signer="$(printf '%s' "$signer" | tr -cd '0-9A-Fa-f')"; \
+    test -n "$signer"; \
+    curl -fsSL "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x${signer}" -o "$tmpdir/git-core-ppa-key.asc"; \
+    gpg --dearmor -o /usr/share/keyrings/git-core-ppa.gpg "$tmpdir/git-core-ppa-key.asc"; \
+    echo "deb [signed-by=/usr/share/keyrings/git-core-ppa.gpg] $ppa_base $codename main" > /etc/apt/sources.list.d/git-core-ppa.list; \
+    rm -rf "$tmpdir"; \
+    apt update; \
+    DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends git; \
+    echo "✅ Git version: $(git --version)"; \
     rm -rf /var/lib/apt/lists/*
 
 # Install basic development tools and iptables/ipset
