@@ -18,15 +18,41 @@
 
 ## 背景・現状（As-Is / 調査メモ） (必須)
 - 現状の挙動（事実）:
-  - `sandbox.config` の `SOURCE_PATH` / `PRODUCT_NAME` を前提に `.env` を生成し、`docker-compose.yml` が `${SOURCE_PATH}` を `${PRODUCT_WORK_DIR}` に bind mount する。: `sandbox.config.example`, `scripts/generate-env.sh`, `docker-compose.yml`
-  - `make start` / `make shell` は `.env` の `PRODUCT_WORK_DIR` に `docker-compose exec -w` で入る。: `Makefile`
-  - `.env` はリポジトリ単位で 1つ（上書き生成）であり、1つの sandbox clone が 1プロダクト運用になりやすい。: `scripts/generate-env.sh`
+  - `sandbox.config` の `SOURCE_PATH` / `PRODUCT_NAME` を前提に `.env` を生成し、`docker-compose.yml` が `${SOURCE_PATH}` を `${PRODUCT_WORK_DIR}` に bind mount する（= 1プロダクト前提の運用になりやすい）。
+  - `make start` / `make shell` は `.env` の `PRODUCT_WORK_DIR` に `docker-compose exec -w` で入る（= `PRODUCT_WORK_DIR` が “初期作業ディレクトリ” と “DoDの変換基準” を兼ねている）。
+  - `.env` はリポジトリ単位で 1つ（上書き生成）であり、同一 clone で複数プロダクト/複数コンテナを安定して並行運用しづらい。
   - Docker-on-Docker:
-    - `/var/run/docker.sock` をマウントし、コンテナ内からホストの Docker を操作できる。: `docker-compose.yml`
-    - エントリポイントで docker.sock の権限調整を行い、`node` ユーザーで Docker CLI を使えるようにしている。: `scripts/docker-entrypoint.sh`, `Dockerfile`
-    - 利用ガイドで “ホスト側の絶対パスを volume mount に使う” 注意点が明記されている。: `CLAUDE.md`
+    - `/var/run/docker.sock` をマウントし、コンテナ内からホストの Docker を操作できる。
+    - エントリポイントで docker.sock の権限調整を行い、`node` ユーザーで Docker CLI を使えるようにしている。
+    - 利用ガイドで “ホスト側の絶対パスを volume mount に使う” 注意点が明記されている。
   - Devcontainer:
-    - `.devcontainer/devcontainer-template.json` を元に `.devcontainer/devcontainer.json` を生成している（`workspaceFolder` を差し替え）。: `scripts/generate-env.sh`, `.devcontainer/devcontainer-template.json`
+    - `.devcontainer/devcontainer-template.json` を元に `.devcontainer/devcontainer.json` を生成している（`workspaceFolder` を差し替え）。
+- As-Is の根拠（コード観測 / 行番号つき・抜粋）:
+  - `.env` 生成:
+    - `.env` の出力先はリポジトリ直下固定（上書き）: `scripts/generate-env.sh:15-16`
+    - `HOST_PRODUCT_PATH` は `SOURCE_PATH` を元に `.env` に出力: `scripts/generate-env.sh:149-154`
+    - `PRODUCT_WORK_DIR=/srv/$product_name` を `.env` に出力: `scripts/generate-env.sh:155-161`
+    - `CONTAINER_NAME` は `SOURCE_PATH` 由来で生成（最大63文字へ切り詰め）: `scripts/generate-env.sh:71-103`, `scripts/generate-env.sh:163-170`
+    - `.devcontainer/devcontainer.json` はテンプレの `workspaceFolder` を `PRODUCT_WORK_DIR` に置換して生成: `scripts/generate-env.sh:214-236`, `.devcontainer/devcontainer-template.json:5-9`
+  - Compose 定義（`docker-compose.yml`）:
+    - Composeプロジェクト名: `name: ${CONTAINER_NAME:-agent-sandbox}`: `docker-compose.yml:1`
+    - コンテナ名: `container_name: ${CONTAINER_NAME:-agent-sandbox}`: `docker-compose.yml:11`
+    - 作業ディレクトリ: `working_dir: ${PRODUCT_WORK_DIR}`: `docker-compose.yml:13`
+    - DoD向け環境変数:
+      - `HOST_PRODUCT_PATH=${SOURCE_PATH}`: `docker-compose.yml:31`
+      - `PRODUCT_WORK_DIR=${PRODUCT_WORK_DIR}`: `docker-compose.yml:33`
+      - `DOCKER_HOST=unix:///var/run/docker.sock`: `docker-compose.yml:34`
+    - プロダクトコードの bind mount: `${SOURCE_PATH}:${PRODUCT_WORK_DIR}`: `docker-compose.yml:37`
+    - docker.sock の mount: `/var/run/docker.sock:/var/run/docker.sock`: `docker-compose.yml:48`
+    - `.env` の読み込み: `env_file: .env`: `docker-compose.yml:54-55`
+  - `make start` / `make shell` の挙動:
+    - `make start` は `.env` の `CONTAINER_NAME` を見て起動有無を判定: `Makefile:86-105`
+    - `make start` は `.env` の `PRODUCT_WORK_DIR` を `docker-compose exec -w` に渡して接続: `Makefile:109-113`
+  - docker-entrypoint（DoD権限調整）:
+    - docker.sock のGID取得・dockerグループ調整・nodeユーザーへ付与: `scripts/docker-entrypoint.sh:5-25`
+    - 起動時に `docker version` で疎通確認: `scripts/docker-entrypoint.sh:55-60`
+  - 外部プロダクトの依存（`taikyohiyou_project`）:
+    - `HOST_PRODUCT_PATH` と `PRODUCT_WORK_DIR` が与えられる場合、コンテナ内パス（`repo_root`）を “ホスト絶対パス” に変換して `.env.git` に書き出す: `/Users/iwasawayuuta/workspace/product/taikyohiyou_project/scripts/git/detect_git_env.sh:15-25`, 同 `:66-78`
 - 現状の課題（困っていること）:
   - 別プロジェクトで使うには `sandbox.config` の書き換え、または sandbox をプロジェクトごとに clone する必要がある。
   - 「どのディレクトリでも」安全にエージェントを動かすための汎用 sandbox として使いにくい。
@@ -66,7 +92,8 @@
   - 複数コンテナを同時に起動可能にする:
     - コンテナの同一性キーは `(abs_mount_root, abs_workdir)` とする（両方 realpath/絶対パス化）。
     - 同一性キーが異なれば別コンテナとして起動する（並行稼働できる）。
-  - コンテナ内のマウント先（mount point）は固定値とし、`/srv/mount` を採用する。
+  - **動的マウント起動モード**のコンテナ内マウント先（mount point）は固定値とし、`/srv/mount` を採用する。
+    - 既存の `make start` モードは従来通り `PRODUCT_WORK_DIR=/srv/$PRODUCT_NAME` を維持する（互換性）。
   - コンテナ名は自動生成のみ（ユーザー指定は不要）:
     - prefix: `sandbox-`
     - 可読部: `basename(mount-root)` + `basename(workdir)`（同一の場合は重複しない）
@@ -92,7 +119,7 @@
 
 ## 非交渉制約（守るべき制約） (必須)
 - 既存の `sandbox.config` / `make start` 系の使い方は当面維持する（互換性）。
-- コンテナ内マウント先は固定: `/srv/mount`。
+- **動的マウント起動モード**のコンテナ内マウント先は固定: `/srv/mount`（既存 `make start` モードは従来通り `/srv/$PRODUCT_NAME`）。
 - `mount-root` 自動推定にガードを入れ、広すぎる場合はエラーで拒否する（安全優先）。
 - コンテナ名は ASCII で扱える文字（`sandbox-...`）で自動生成する。
 - コンテナ名の末尾ハッシュは 12桁固定とする。
@@ -156,6 +183,8 @@
     - コンテナ名が `sandbox-` で始まる
     - `basename(mount-root)` と `basename(workdir)` の可読部が含まれる（同一の場合は重複しない）
     - 末尾に 12桁ハッシュが付与され、衝突しにくい
+    - 12桁ハッシュは **instance key（`abs_mount_root` と `abs_workdir` のフルパス）** から算出する（可読部の短縮形/slugからは算出しない）
+    - 同一 instance key（`(abs_mount_root, abs_workdir)`）なら、同一コンテナ名になる（決定的）
   - 観測点: `docker ps` / OrbStack UI で識別できる
 - AC-005: 自動推定が “広すぎる” 場合は拒否
   - Actor/Role: 開発者
@@ -206,6 +235,14 @@
   - When: sandbox コンテナ内で対象プロダクトの “コンテナ内パス→ホストパス変換” を行うスクリプトを実行する（例: `taikyohiyou_project/scripts/git/detect_git_env.sh`）
   - Then: 変換後のパス（例: `.env.git` の `CURRENT_PROJECT_PATH`）がホストから見える絶対パスになる
   - 観測点: Container 内のスクリプト出力/生成ファイル
+- AC-011: 同一 instance key の再実行でコンテナが増えない（再利用）
+  - Actor/Role: 開発者
+  - Given: 同一の `(abs_mount_root, abs_workdir)` で動的マウント起動を実行できる
+  - When: 同じ引数（または同じ PWD からの引数なし起動）で複数回起動する
+  - Then:
+    - 同一コンテナ名が選ばれ、コンテナが “増殖” しない
+    - 既に存在するが停止中の場合は、そのコンテナが再起動される
+  - 観測点: `docker ps -a` の名前一覧 / OrbStack UI 上のコンテナ数
 
 ### 入力→出力例 (任意)
 - EX-001: 引数なし（worktree内）
@@ -230,14 +267,25 @@
   - 条件: git 管理下のはずのディレクトリで `git` コマンドが失敗する、または worktree 情報が取得できない
   - 期待: エラーで終了し、明示指定（`--mount-root`/`--workdir`）を促す
   - 観測点: Host 出力 / 終了コード
+- EC-004: コンテナ名の可読部（slug）に不正/長すぎる文字が含まれる
+  - 条件: `basename(mount-root)` / `basename(workdir)` に非ASCII、空白、記号が含まれる、または極端に長い
+  - 期待:
+    - コンテナ名は Docker が受理できる文字種に正規化される（少なくとも ASCII に落とす）
+    - コンテナ名（全体）は Docker/Compose の制約を超えない長さに収める（例: 63文字程度）
+    - 正規化の結果可読部が空になる場合でも、起動不能にならない（fallback で最低限の名前を確保）
+  - 観測点: Host 出力 / `docker ps` の名前表示 / 起動成功
 
 ## 用語（ドメイン語彙） (必須)
-- TERM-001: mount-root = ホスト側で bind mount する “親ディレクトリ”（コンテナ内 `/srv/mount` に載る）
+- TERM-001: mount-root = ホスト側で bind mount する “親ディレクトリ”（動的マウント起動モードで、コンテナ内 `/srv/mount` に載る）
 - TERM-002: workdir = コンテナ起動後に最初に入る作業ディレクトリ（PWD 由来 or 指定）
 - TERM-003: instance key = `(abs_mount_root, abs_workdir)`（realpath/絶対パス）で表すコンテナ同一性
 - TERM-004: slug = コンテナ名に含める可読部（`basename(mount-root)` と `basename(workdir)` の組）
-- TERM-005: `PRODUCT_WORK_DIR` = Docker-on-Docker 用の “コンテナ内” マウント基準パス（本機能では `/srv/mount`）
-- TERM-006: `HOST_PRODUCT_PATH` = Docker-on-Docker 用の “ホスト側” マウント基準パス（本機能では `mount-root` の絶対パス）
+- TERM-005: `PRODUCT_WORK_DIR` = Docker-on-Docker 用の “コンテナ内” マウント基準パス（= `HOST_PRODUCT_PATH` に対応するコンテナ内の基準パス）
+  - legacy（`make start`）: `/srv/$PRODUCT_NAME`（`scripts/generate-env.sh:160`）
+  - dynamic（本機能）: `/srv/mount`
+- TERM-006: `HOST_PRODUCT_PATH` = Docker-on-Docker 用の “ホスト側” マウント基準パス（= `PRODUCT_WORK_DIR` に対応するホスト絶対パス）
+  - legacy（`make start`）: `SOURCE_PATH`（`docker-compose.yml:31`, `scripts/generate-env.sh:149-154`）
+  - dynamic（本機能）: `abs_mount_root`
 
 ## 未確定事項（TBD / 要確認） (必須)
 - Q-003: “広すぎる” ガードの具体ロジック
