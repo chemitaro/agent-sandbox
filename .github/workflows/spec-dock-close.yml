@@ -11,6 +11,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   spec_dock_close:
     runs-on: ubuntu-latest
@@ -25,15 +29,23 @@ jobs:
           fetch-depth: 0
 
       - name: Evaluate commit message for close skip
+        id: close_guard
         run: |
+          should_run=true
+
           # push-only skip check. workflow_dispatch has no head_commit.
-          if echo "${{ github.event.head_commit.message }}" | grep -q '\[skip spec-dock-close\]'; then
-            echo "::notice::Skip spec-dock close for auto-generated commit."
-            exit 0
+          if [ "${{ github.event_name }}" = "push" ]; then
+            if echo "${{ github.event.head_commit.message }}" | grep -q '\[skip spec-dock-close\]'; then
+              echo "::notice::Skip spec-dock close due to [skip spec-dock-close] token."
+              should_run=false
+            fi
           fi
+
+          echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
 
       - name: Run spec-dock-close
         id: run_close
+        if: steps.close_guard.outputs.should_run == 'true'
         run: |
           chmod +x .spec-dock/scripts/spec-dock-close.sh
           set -o pipefail
@@ -48,6 +60,7 @@ jobs:
 
       - name: Detect spec-dock differences
         id: diff_check
+        if: steps.close_guard.outputs.should_run == 'true'
         run: |
           if git status --porcelain .spec-dock | grep -q .; then
             echo "has_diff=true" >> "$GITHUB_OUTPUT"
@@ -56,7 +69,7 @@ jobs:
           fi
 
       - name: Auto commit spec-dock changes
-        if: steps.diff_check.outputs.has_diff == 'true'
+        if: steps.close_guard.outputs.should_run == 'true' && steps.diff_check.outputs.has_diff == 'true'
         run: |
           git config user.name "spec-dock-close-bot"
           git config user.email "spec-dock-close-bot@users.noreply.github.com"
@@ -69,4 +82,3 @@ jobs:
         if: failure()
         run: |
           echo "::error::spec-dock close failed for ${TARGET_BRANCH}. Check logs above, then run './.spec-dock/scripts/spec-dock-close.sh' locally and push to ${TARGET_BRANCH}."
-
