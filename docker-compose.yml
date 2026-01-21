@@ -18,6 +18,9 @@ services:
       - CLAUDE_CONFIG_DIR=/home/node/.claude
       - CODEX_CONFIG_DIR=/home/node/.codex
       - GEMINI_CONFIG_DIR=/home/node/.gemini
+      - OPENCODE_CONFIG_DIR=/home/node/.config/opencode
+      - OPENCODE_DATA_DIR=/home/node/.local/share/opencode
+      - OPENCODE_CACHE_DIR=/home/node/.cache/opencode
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
       - DEVCONTAINER=true
       # Timezone
@@ -36,8 +39,11 @@ services:
       - ./.agent-home/.claude:/home/node/.claude
       - ./.agent-home/.codex:/home/node/.codex
       - ./.agent-home/.gemini:/home/node/.gemini
+      - ./.agent-home/.opencode:/home/node/.config/opencode
+      - ./.agent-home/.opencode-data:/home/node/.local/share/opencode
       - ./.agent-home/.cache/uv:/home/node/.cache/uv
       - ./.agent-home/.cache/pre-commit:/home/node/.cache/pre-commit
+      - ./.agent-home/.cache/opencode:/home/node/.cache/opencode
       # Docker socket for Docker-on-Docker
       - /var/run/docker.sock:/var/run/docker.sock
       # Host sandbox path for Docker operations

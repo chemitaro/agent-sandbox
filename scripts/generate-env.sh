@@ -24,8 +24,14 @@ ensure_agent_home_dirs() {
         "$AGENT_HOME_DIR/.claude" \
         "$AGENT_HOME_DIR/.codex" \
         "$AGENT_HOME_DIR/.gemini" \
+        "$AGENT_HOME_DIR/.opencode" \
+        "$AGENT_HOME_DIR/.opencode/agent" \
+        "$AGENT_HOME_DIR/.opencode/command" \
+        "$AGENT_HOME_DIR/.opencode/plugin" \
+        "$AGENT_HOME_DIR/.opencode-data" \
         "$AGENT_HOME_DIR/.cache/uv" \
         "$AGENT_HOME_DIR/.cache/pre-commit" \
+        "$AGENT_HOME_DIR/.cache/opencode" \
         "$AGENT_HOME_DIR/commandhistory"
 }
 

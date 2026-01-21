@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Unique tmux session for OpenCode
+SESSION_NAME=${SESSION_NAME:-opencode}
+WORKDIR=${WORKDIR:-${PRODUCT_WORK_DIR}}
+OPENCODE_BIN=${OPENCODE_BIN:-opencode}
+# Default options can be overridden via env
+OPENCODE_DEFAULT_OPTS=${OPENCODE_DEFAULT_OPTS:-}
+
+quote_args() {
+  local out=""
+  for a in "$@"; do
+    out+=" "
+    out+=$(printf %q "$a")
+  done
+  printf "%s" "$out"
+}
+
+if ! command -v tmux >/dev/null 2>&1; then
+  echo "❌ tmux not found in PATH" >&2
+  exit 1
+fi
+
+if ! command -v "$OPENCODE_BIN" >/dev/null 2>&1; then
+  echo "❌ OpenCode CLI ('$OPENCODE_BIN') not found in PATH" >&2
+  exit 1
+fi
+
+ARGS_ESC=$(quote_args "$@")
+RUN_CMD="$OPENCODE_BIN"
+if [[ -n "$OPENCODE_DEFAULT_OPTS" ]]; then
+  RUN_CMD+=" $OPENCODE_DEFAULT_OPTS"
+fi
+RUN_CMD+="$ARGS_ESC"
+
+if [[ -n "${TMUX:-}" ]]; then
+  # Inside tmux: switch if exists, otherwise create detached and switch
+  if tmux has-session -t "=$SESSION_NAME" 2>/dev/null; then
+    exec tmux switch-client -t "=$SESSION_NAME"
+  else
+    tmux new-session -d -s "$SESSION_NAME" -c "$WORKDIR" "$RUN_CMD"
+    exec tmux switch-client -t "=$SESSION_NAME"
+  fi
+else
+  # Outside tmux: attach or create/attach
+  exec tmux new-session -A -s "$SESSION_NAME" -c "$WORKDIR" "$RUN_CMD"
+fi
+

@@ -14,4 +14,4 @@
 
 - Git / GitHub に対して **破壊的・不可逆** になり得る操作（例: 履歴の書き換え、強制更新、削除、権限/設定の変更、機密情報の登録/更新など）は **禁止**（Execpolicy: `.agent-home/.codex/rules/*.rules` で強制）。
 - `git add` / `git commit` はユーザーの **明示的な指示** がある場合、または作業手順に含まれている場合のみ実行し、それ以外は不用意に行わない。
-- コミットメッセージは Conventional Commits 形式に従い、日本語で作成する。
+- コミットメッセージは Conventional Commits（`type(scope): 要約`）に従い日本語・**複数行必須**（1行目=要約→空行→本文=変更点/理由/影響/テストを箇条書き→必要ならフッター=`BREAKING CHANGE:`/`Refs:`/`Closes #`）。
