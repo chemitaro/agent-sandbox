@@ -3,7 +3,7 @@
 機能ID: "FEAT-005"
 機能名: "動的マウント起動（任意ディレクトリをSandboxとして起動）"
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI"
 最終更新: "2026-01-21"
 ---
