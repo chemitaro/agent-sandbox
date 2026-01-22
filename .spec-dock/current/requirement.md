@@ -3,7 +3,7 @@
 機能ID: "FEAT-005"
 機能名: "動的マウント起動（任意ディレクトリをSandboxとして起動）"
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
-状態: "approved"
+状態: "draft"
 作成者: "Codex CLI"
 最終更新: "2026-01-22"
 ---
@@ -79,8 +79,37 @@
 
 ## スコープ（暴走防止のガードレール） (必須)
 - MUST（必ずやる）:
-  - 新しい起動スクリプト（ホスト側）を追加し、任意ディレクトリから sandbox を起動できるようにする。
-    - `/usr/local/bin/sandbox` に symlink を配置するインストール手段を提供する（本体は置かない）。
+  - ホスト側 CLI `sandbox` を追加し、任意ディレクトリから “動的マウント sandbox” を操作できるようにする。
+    - `/usr/local/bin/sandbox` に起動スクリプトへの symlink を配置するインストール手段を提供する（本体は置かない）。
+    - `sandbox` は docker compose に準じたサブコマンドを持つ:
+      - `sandbox shell`（デフォルト: `sandbox` と同義）
+      - `sandbox up`
+      - `sandbox build`
+      - `sandbox stop`
+      - `sandbox down`
+      - `sandbox status`
+      - `sandbox name`
+    - Help を提供する:
+      - `sandbox help` でヘルプを表示できる
+      - `sandbox -h` / `sandbox --help` でヘルプを表示できる（`sandbox help` と同義）
+      - `sandbox <subcommand> -h` / `sandbox <subcommand> --help` で、そのサブコマンドのヘルプを表示できる
+    - すべてのサブコマンドは同じ引数（`--mount-root` / `--workdir`）を受け取り、同一のパス決定・ガード・コンテナ名算出ロジックを使う。
+    - `sandbox shell` は “起動 + 接続” を包含する:
+      - 対象コンテナが起動していない場合は起動する（必要なら build も行う）
+      - 起動後、`workdir` に対応するコンテナ内パスへ `exec -w` で接続する
+    - `sandbox up` は “起動のみ” を行う（接続しない）:
+      - 対象コンテナが存在しない場合は build を伴って起動する
+      - 対象コンテナが既に存在する場合は起動（必要なら再起動）する
+    - `sandbox down` / `sandbox stop` は冪等にする:
+      - 対象コンテナが存在しない場合は「対応するコンテナがありません」等のメッセージを表示し、成功終了（exit 0）する
+      - 対象コンテナが存在する場合は対象のみを停止/削除する（誤って他インスタンスを落とさない）
+    - `sandbox name` は “合成されたコンテナ名の確認” を提供する:
+      - 対象インスタンスの `container_name` を **合成して** 標準出力に 1 行だけ出力する
+      - コンテナの存在/稼働の有無は問わない（Docker を見に行かない）
+    - `sandbox status` は “対象コンテナの状態確認” を提供する:
+      - 対象インスタンスの `container_name` を **合成し**、そのコンテナの存在/状態/ID を表示する
+      - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）する
+      - 起動/ビルド/接続は行わない（副作用なし）
   - `mount-root`（マウント親）と `workdir`（初期作業ディレクトリ）を分離して扱えるようにする。
     - 両方指定された場合は指定通りに採用する。
     - `--mount-root` のみ指定された場合は `workdir=mount-root` に補完する。
@@ -153,7 +182,7 @@
 - AC-001: 引数なし起動（git worktree 自動推定）
   - Actor/Role: 開発者
   - Given: git 管理下のディレクトリ（worktree を含む可能性あり）で PWD が作業対象である
-  - When: 新しい起動スクリプトを引数なしで実行する
+  - When: `sandbox`（=`sandbox shell`）を引数なしで実行する
   - Then:
     - `workdir` は PWD が採用される
     - `mount-root` は git 情報を解析して自動推定される（worktree を包含）
@@ -164,7 +193,7 @@
 - AC-002: 明示指定起動（mount-root/workdir）
   - Actor/Role: 開発者
   - Given: `--mount-root` と `--workdir` に実在するディレクトリを指定できる
-  - When: 起動スクリプトに両方を指定して実行する
+  - When: `sandbox`（=`sandbox shell`）に両方を指定して実行する
   - Then:
     - 指定した `mount-root` が `/srv/mount` にマウントされる
     - 指定した `workdir` に対応するコンテナ内パスに初期移動する
@@ -173,7 +202,7 @@
 - AC-003: 複数インスタンスの並行起動
   - Actor/Role: 開発者
   - Given: 異なる `(mount-root, workdir)` の組が2つ以上ある
-  - When: それぞれで起動スクリプトを実行する
+  - When: それぞれで `sandbox`（=`sandbox shell`）を実行する
   - Then: 別コンテナとして同時に起動・共存できる（片方がもう片方を落とさない）
   - 観測点: `docker ps` / OrbStack UI で複数コンテナが確認できる
 - AC-004: コンテナ名の自動生成（可読 + 衝突防止）
@@ -203,7 +232,7 @@
 - AC-007: 引数なし起動（git 管理外ディレクトリ）
   - Actor/Role: 開発者
   - Given: git 管理外のディレクトリで PWD が作業対象である
-  - When: 新しい起動スクリプトを引数なしで実行する
+  - When: `sandbox`（=`sandbox shell`）を引数なしで実行する
   - Then:
     - `mount-root=workdir=PWD` が採用される
     - コンテナが起動し、初期作業ディレクトリが PWD 相当のパスになる
@@ -246,7 +275,7 @@
 - AC-012: 明示指定起動（`--mount-root` のみ指定）
   - Actor/Role: 開発者
   - Given: `--mount-root` に実在するディレクトリを指定できる
-  - When: 起動スクリプトに `--mount-root <path>` のみを指定して実行する
+  - When: `sandbox`（=`sandbox shell`）に `--mount-root <path>` のみを指定して実行する
   - Then:
     - `workdir` は `mount-root` と同一に補完される
     - 指定した `mount-root` が `/srv/mount` にマウントされる
@@ -257,7 +286,7 @@
 - AC-013: 明示指定起動（`--workdir` のみ指定）
   - Actor/Role: 開発者
   - Given: `--workdir` に実在するディレクトリを指定できる
-  - When: 起動スクリプトに `--workdir <path>` のみを指定して実行する
+  - When: `sandbox`（=`sandbox shell`）に `--workdir <path>` のみを指定して実行する
   - Then:
     - `workdir` は指定値が採用される
     - `mount-root` は以下のルールで補完される
@@ -267,6 +296,89 @@
   - 観測点:
     - Host 出力: `mount-root` / `workdir` / コンテナ名が表示される
     - Container: `pwd` が期待通り（`workdir` 相当の `/srv/mount/...`）である
+- AC-014: `sandbox up`（起動のみ）
+  - Actor/Role: 開発者
+  - Given: 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox up` を実行する
+  - Then:
+    - 対象コンテナが起動状態になる（必要なら build される）
+    - `sandbox up` はシェル接続を開始しない
+  - 観測点: Host 出力 / `docker ps` / OrbStack UI
+- AC-015: `sandbox stop`（停止のみ）
+  - Actor/Role: 開発者
+  - Given: 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox stop` を実行する
+  - Then:
+    - 対象コンテナが存在する場合は停止する
+    - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）する
+  - 観測点: Host 出力 / `docker ps -a` / OrbStack UI
+- AC-016: `sandbox down`（停止＋削除）
+  - Actor/Role: 開発者
+  - Given: 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox down` を実行する
+  - Then:
+    - 対象コンテナが存在する場合は docker compose down 相当で停止＋削除する
+    - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）する
+  - 観測点: Host 出力 / `docker ps -a` / OrbStack UI
+- AC-017: `sandbox build`（ビルドのみ）
+  - Actor/Role: 開発者
+  - Given: 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox build` を実行する
+  - Then:
+    - sandbox イメージがビルドされる
+    - `sandbox build` はコンテナ起動やシェル接続を開始しない
+  - 観測点: Host 出力 / build ログ
+- AC-018: Help 表示（`sandbox help` / `-h`）
+  - Actor/Role: 開発者
+  - Given: `sandbox` コマンドが利用できる
+  - When:
+    - `sandbox help` を実行する（または `sandbox -h` / `sandbox --help` を実行する）
+  - Then:
+    - ヘルプ（Usage/サブコマンド一覧/共通引数/例）が標準出力に表示される
+    - 終了コード 0 で終了する
+  - 観測点: Host 出力 / 終了コード
+  - 補足:
+    - `sandbox <subcommand> -h` / `--help` でサブコマンド固有のヘルプが表示される
+- AC-019: コンテナ名の表示（`sandbox name`）
+  - Actor/Role: 開発者
+  - Given: 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox name` を実行する
+  - Then:
+    - 対象インスタンスの `container_name` が **標準出力に 1 行だけ** 出力される（末尾改行あり）
+    - Docker の状態（存在/稼働/停止）は問わない（Docker を見に行かない）
+    - 終了コード 0 で終了する
+  - 観測点: Host 出力（stdout）/ 終了コード
+  - 補足:
+    - `mount-root` 自動推定のガードに引っかかった場合などは、他サブコマンド同様にエラーで停止してよい（exit 0 ではない）
+
+- AC-020: コンテナ状態の表示（`sandbox status`）
+  - Actor/Role: 開発者
+  - Given: 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox status` を実行する
+  - Then:
+    - 対象インスタンスの `container_name` が表示される（Docker の状態に関わらず）
+    - 標準出力は少なくとも以下のキーを **各1回ずつ** 含み、複数行で表示される（実装は `key: value` 形式（1行1キー）とする）:
+      - `container_name`
+      - `status`
+      - `container_id`
+      - `mount_root`
+      - `workdir`
+    - 対象コンテナが存在する場合:
+      - `status` は Docker の `State.Status`（例: `running` / `exited` / `created` など）になる
+      - `container_id` は短縮ID（例: 12桁）でよい
+      - 終了コード 0 で終了する
+    - 対象コンテナが存在しない場合:
+      - 「対応するコンテナがありません」等のメッセージを表示する（例: `message: 対応するコンテナがありません`）
+      - `status` は `not-found` になる
+      - `container_id` は `-`（または空）でよい
+      - 終了コード 0 で終了する
+    - `mount_root` / `workdir` はホスト絶対パス（realpath）になる
+    - 起動/ビルド/接続は行わない（副作用なし）
+  - 観測点:
+    - Host 出力（stdout）
+    - 終了コード（対象が存在しない場合も 0）
+  - 補足:
+    - `mount-root` 自動推定のガードに引っかかった場合などは、他サブコマンド同様にエラーで停止してよい（exit 0 ではない）
 
 ### 入力→出力例 (任意)
 - EX-001: 引数なし（worktree内）

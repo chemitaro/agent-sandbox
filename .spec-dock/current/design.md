@@ -83,14 +83,61 @@
 - IF-CLI-001: `sandbox`
   - 目的: 動的マウント起動（本機能）
   - Usage（案）:
-    - `sandbox`（引数なし）: `workdir=PWD`、`mount-root` は git 解析で自動推定（非gitなら `mount-root=PWD`）
-    - `sandbox --mount-root <path> --workdir <path>`: 明示指定（両方）
-    - `sandbox --mount-root <path>`: `mount-root` のみ指定（`workdir=mount-root` に補完）
-    - `sandbox --workdir <path>`: `workdir` のみ指定（`mount-root` を git 解析で自動推定に補完）
+    - `sandbox`（= `sandbox shell`）
+    - `sandbox help`（ヘルプ表示）
+    - `sandbox shell`（起動+接続）
+    - `sandbox up`（起動のみ）
+    - `sandbox build`（ビルドのみ）
+    - `sandbox stop`（停止のみ）
+    - `sandbox down`（停止+削除）
+    - `sandbox status`（状態表示）
+    - `sandbox name`（コンテナ名の表示）
+    - `sandbox -h` / `sandbox --help`（`sandbox help` と同義）
+    - `sandbox <subcommand> -h` / `sandbox <subcommand> --help`（サブコマンド固有ヘルプ）
+  - 引数（共通）:
+    - すべてのサブコマンドは `--mount-root <path>` / `--workdir <path>` を受け取る
+    - `mount-root/workdir` の決定ルールは「具体設計 2)」に従う
+      - 引数なし: `workdir=PWD`、`mount-root` は git 解析で自動推定（非gitなら `mount-root=PWD`）
+      - `--mount-root <path> --workdir <path>`: 明示指定（両方）
+      - `--mount-root <path>` のみ: `workdir=mount-root` に補完
+      - `--workdir <path>` のみ: `mount-root` を git 解析で自動推定に補完（非gitなら `mount-root=workdir`）
+  - 振る舞い（サブコマンド別）:
+    - `sandbox shell` / `sandbox`:
+      - 対象コンテナが起動していなければ起動する（必要なら build）
+      - `docker compose exec -w "$container_workdir"` で接続する
+    - `sandbox up`:
+      - 対象コンテナを起動する（コンテナが無ければ build を伴う）
+      - シェル接続は行わない
+    - `sandbox build`:
+      - `docker compose build` 相当を行う
+      - 起動/接続は行わない
+    - `sandbox stop`:
+      - 対象コンテナが存在する場合は停止する
+      - 存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）
+    - `sandbox down`:
+      - 対象コンテナが存在する場合は `docker compose down` 相当で停止+削除する
+      - 存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）
+    - `sandbox status`:
+      - 対象コンテナの存在/状態/ID を表示する（副作用なし）
+      - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）
+    - `sandbox name`:
+      - 対象インスタンスの `container_name` を合成して標準出力へ 1 行だけ出力し、exit 0
+      - Docker の状態（存在/稼働/停止）は問わない（Docker を見に行かない）
+    - `sandbox help` / `-h` / `--help`:
+      - ヘルプ（Usage/サブコマンド一覧/共通引数/例）を表示し、exit 0
   - 標準出力（観測点）:
-    - 選ばれた `mount-root` / `workdir` / `container_name` / `container_workdir`
+    - `sandbox name`: `container_name` のみ（1行）
+    - `sandbox status`: 以下のキーを含む複数行（少なくとも各1回ずつ）
+      - `container_name`
+      - `status`（存在しない場合は `not-found`）
+      - `container_id`（存在しない場合は `-`）
+      - `mount_root`（ホスト絶対パス / realpath）
+      - `workdir`（ホスト絶対パス / realpath）
+      - 形式: `key: value`（1行1キー）
+      - 追加情報（任意）: 対象が無い場合は `message: 対応するコンテナがありません` 等を追加してよい
+    - それ以外: 選ばれた `mount-root` / `workdir` / `container_name`（必要に応じて `container_workdir`）
   - 終了コード:
-    - 0: 起動および接続に成功
+    - 0: 成功（`stop`/`down` は “対象が無い” 場合も成功）
     - 非0: 入力不正、git解析失敗、ガード違反、docker失敗 など
 
 ### Compose へ注入する値（動的モード）
@@ -246,17 +293,36 @@
 - 実行ディレクトリ:
   - `docker compose` は常に `SANDBOX_ROOT` から実行する（具体設計 0）。
 - 注入する環境変数:
-  - `IF-ENV-001` の値を **`up` と `exec` の両方**に必ず注入する（同一コンテナへ確実に到達するため）。
+  - `IF-ENV-001` の値を **すべての compose 呼び出し**（`build`/`up`/`exec`/`stop`/`down`）に必ず注入する（同一インスタンスへ確実に到達するため）。
 - プロジェクト分離（複数インスタンス共存のため必須）:
   - `COMPOSE_PROJECT_NAME=$CONTAINER_NAME` を起動時に必ず注入する
     - 目的: 同一 compose ファイルから複数プロジェクトを共存させ、network 等の衝突を避ける
-- 起動:
-  - 既存コンテナが無ければ `up -d --build`
-  - 既存コンテナが停止中なら `up -d`（または `start`）
+- 事前判定（対象コンテナの有無）:
+  - `docker ps -a` で `container_name` の存在を確認する（無ければ `stop/down` はメッセージ+exit 0、`up/shell` は作成へ進む）
+- `sandbox up`（AC-014）:
+  - 既存コンテナが無ければ `docker compose up -d --build`
+  - 既存コンテナが停止中なら `docker compose up -d`（または `start`）
   - 既に起動中ならそのまま
-- 接続:
-  - `docker compose exec -w "$container_workdir" agent-sandbox /bin/zsh`
-  - 観測（AC-001/002/007）: `pwd` が `$container_workdir` と一致
+- `sandbox shell` / `sandbox`（AC-001/002/007/012/013）:
+  - `sandbox up` 相当で起動状態を確保した後に接続する
+  - 接続: `docker compose exec -w "$container_workdir" agent-sandbox /bin/zsh`
+  - 観測: `pwd` が `$container_workdir` と一致
+- `sandbox build`（AC-017）:
+  - `docker compose build` を実行する（起動/接続は行わない）
+- `sandbox stop`（AC-015）:
+  - 対象コンテナが存在する場合は `docker compose stop` を実行する
+  - 存在しない場合はメッセージを表示し、exit 0
+- `sandbox down`（AC-016）:
+  - 対象コンテナが存在する場合は `docker compose down` を実行する（停止+削除）
+  - 存在しない場合はメッセージを表示し、exit 0
+- `sandbox status`（AC-020）:
+  - 対象コンテナが存在する場合:
+    - `docker inspect "$container_name"` により以下を取得して表示する
+      - `status`: `.State.Status`（例: `running` / `exited` / `created` など）
+      - `container_id`: `.Id` の先頭12文字（短縮ID）
+  - 存在しない場合:
+    - `docker inspect` が “No such object” 相当で失敗するため、それを検知して `status=not-found` として表示する
+    - メッセージを表示し、exit 0
 
 ### 8) 共有 env（秘密情報/任意環境変数）
 - 目的: `env_file` を “インスタンスごとに生成” せず、かつ任意の環境変数（GH_TOKEN など）をコンテナへ渡せるようにする。
@@ -277,6 +343,7 @@
   - `tests/sandbox_name.test.sh`（案）: コンテナ名生成のユニットテスト（slug/hash/長さ）。
   - `tests/sandbox_paths.test.sh`（案）: `mount-root/workdir` 正規化と `container_workdir` 変換のユニットテスト。
   - `tests/sandbox_git_detect.test.sh`（案）: worktree list のパースと LCA 計算（疑似入力でテスト）。
+  - `tests/sandbox_cli.test.sh`（案）: CLI サブコマンド（shell/up/build/stop/down/status/help/name）の分岐と exit code をテスト（docker/compose は stub 化して外部依存を排除）。
 - 変更（Modify）:
   - `Makefile`: 旧 `make start` / `make shell` フローを削除し、起動は `sandbox` に統一する（互換性は持たせない / `.env` 上書き事故を防ぐ）。
   - `README.md`: `sandbox` 起動の導線と、旧 `make start` フローからの移行注意点を追記（要件の“誤解防止”目的）。
@@ -304,6 +371,13 @@
 - AC-011 → 具体設計(6,7)（決定的名前→同一コンテナを再利用）
 - AC-012 → IF-CLI-001 / 具体設計(2,5,7) / `host/sandbox`
 - AC-013 → IF-CLI-001 / 具体設計(2,3,4,5,7) / `host/sandbox`
+- AC-014 → IF-CLI-001 / 具体設計(2,3,4,6,7) / `host/sandbox` / `tests/sandbox_cli.test.sh`
+- AC-015 → IF-CLI-001 / 具体設計(2,3,4,6,7) / `host/sandbox` / `tests/sandbox_cli.test.sh`
+- AC-016 → IF-CLI-001 / 具体設計(2,3,4,6,7) / `host/sandbox` / `tests/sandbox_cli.test.sh`
+- AC-017 → IF-CLI-001 / 具体設計(2,3,4,6,7) / `host/sandbox` / `tests/sandbox_cli.test.sh`
+- AC-018 → IF-CLI-001 / `tests/sandbox_cli.test.sh`（help / -h / --help）
+- AC-019 → IF-CLI-001 / `tests/sandbox_cli.test.sh`（name）
+- AC-020 → IF-CLI-001 / `tests/sandbox_cli.test.sh`（status）
 - EC-001 → 具体設計(2)（包含関係チェック）
 - EC-003 → 具体設計(3)（git 取得失敗→明示指定を促す）
 - EC-004 → 具体設計(6)（slug 正規化/長さ制限）
@@ -320,6 +394,7 @@
     - `tests/sandbox_name.test.sh`: slug 正規化 / 63文字制限 / hash 決定性（AC-004, EC-004）
     - `tests/sandbox_paths.test.sh`: `container_workdir` 変換（AC-001/002/007/012/013, EC-001）
     - `tests/sandbox_git_detect.test.sh`: worktree list パース→LCA→ガード（AC-001/005/013, EC-003）
+    - `tests/sandbox_cli.test.sh`: サブコマンド分岐と idempotent な stop/down、help/name/status（AC-014/015/016/017/018/019/020）
 - 実行コマンド（案）:
   - `bash tests/sandbox_name.test.sh`
   - `bash tests/sandbox_paths.test.sh`

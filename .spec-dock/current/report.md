@@ -1,71 +1,59 @@
 ---
 種別: 実装報告書
-機能ID: "<FEATURE_ID>"
-機能名: "<FEATURE_NAME>"
-関連Issue: ["<ISSUE_NUMBER_OR_URL>"]
-状態: "draft | approved"
-作成者: "<YOUR_NAME>"
-最終更新: "YYYY-MM-DD"
+機能ID: "FEAT-005"
+機能名: "動的マウント起動（任意ディレクトリをSandboxとして起動）"
+関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
+状態: "draft"
+作成者: "Codex CLI"
+最終更新: "2026-01-22"
 依存: ["requirement.md", "design.md", "plan.md"]
 ---
 
-# <FEATURE_ID> <FEATURE_NAME> — 実装報告（LOG）
+# FEAT-005 動的マウント起動（任意ディレクトリをSandboxとして起動） — 実装報告（LOG）
 
 ## 実装サマリー (任意)
-- [実装した内容の概要を2-3文で記載]
+- （未記載 / 設計フェーズ）
 
 ## 実装記録（セッションログ） (必須)
 
-### YYYY-MM-DD HH:MM - HH:MM
+### 2026-01-22 - 2026-01-22 15:26
 
 #### 対象
-- Step: S01, S02, ...
-- AC/EC: AC-___, EC-___
+- Step: （未着手 / 設計更新）
+- AC/EC: AC-020
 
 #### 実施内容
-- ...
+- `sandbox status` コマンドの仕様追加（要件/設計の更新）。
+- 出力内容（container_name/status/container_id/mount_root/workdir）と exit code 方針（存在しない場合も exit 0）を固定。
 
 #### 実行コマンド / 結果
 ```bash
-<command>
-
-<result>
+# ドキュメントの参照（抜粋）
+sed -n '1,260p' .spec-dock/current/requirement.md
+sed -n '1,260p' .spec-dock/current/design.md
+rg -n "sandbox status|AC-020" .spec-dock/current/requirement.md .spec-dock/current/design.md
 ```
 
 #### 変更したファイル
-- `path/to/file1` - ...
-- `path/to/file2` - ...
+- `.spec-dock/current/requirement.md` - `sandbox status`（AC-020）を追加
+- `.spec-dock/current/design.md` - IF-CLI-001/具体設計/マッピング/テスト戦略に `sandbox status` を反映
 
 #### コミット
-- <hash> <message>
+- （未実施 / 禁止）
 
 #### メモ
-- ...
-
----
-
-### YYYY-MM-DD HH:MM - HH:MM
-
-#### 対象
-- Step: ...
-- AC/EC: ...
-
-#### 実施内容
-- ...
+- 実装/テストはまだ着手しない（設計フェーズ）。
 
 ---
 
 ## 遭遇した問題と解決 (任意)
-- 問題: ...
-  - 解決: ...
+- 該当なし
 
 ## 学んだこと (任意)
-- ...
-- ...
+- 該当なし
 
 ## 今後の推奨事項 (任意)
-- ...
-- ...
+- 該当なし
 
 ## 省略/例外メモ (必須)
 - 該当なし
