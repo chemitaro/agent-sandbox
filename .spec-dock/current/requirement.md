@@ -160,6 +160,7 @@
 - `.agent-home`（各CLIの設定/履歴/キャッシュ）は既存通り共有する（インスタンスごとに分離しない）。
 - Docker-on-Docker を壊さない（`docker` CLI が使え、ホストパスで volume mount できる前提を維持する）。
 - 追加の yaml/ Dockerfile をインスタンスごとに生成して保存しない（運用負荷を増やさない）。
+- timezone 検出はベストエフォートとし、外部コマンド失敗があっても CLI を停止させない（失敗時は既定値へフォールバック）。
 
 ## 前提（Assumptions） (必須)
 - ホスト側で `docker` / `docker compose` が利用できる。

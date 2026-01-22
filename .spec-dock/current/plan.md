@@ -50,6 +50,7 @@
 - [ ] S11: `scripts/install-sandbox.sh` で symlink を配置できる
 - [ ] S12: 旧フローの整理（README/Makefile/scripts）を反映する
 - [ ] S13: DoD 実動の簡易integration検証を行う（手動）
+- [ ] S15: timezone 検出失敗でも CLI が落ちない（best-effort）
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-018 → S01
@@ -67,6 +68,7 @@
 - AC-020 → S10
 - AC-008 → S11
 - OUT OF SCOPE 反映（旧フロー整理） → S12
+- 非交渉制約（timezone best-effort） → S15
 
 ---
 
@@ -469,6 +471,27 @@
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] 検証結果（実行コマンド/結果/観測点）を `report.md` に記録した
+- [ ] `update_plan` 更新
+- [ ] コミット（ユーザーが必要なら実施）
+
+---
+
+### S15 — timezone 検出失敗でも CLI が落ちない（best-effort） (必須)
+- 対象: 非交渉制約（timezone 検出は失敗を許容）
+- 設計参照: IF-ENV-001（TZ ルール）
+- 対象テスト: `tests/sandbox_timezone.test.sh::detect_timezone_failures_fallback`
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `readlink` / `systemsetup` / `timedatectl` が失敗する環境
+- When: `detect_timezone` を呼び出す
+- Then: 失敗で CLI が終了せず、`Asia/Tokyo` 等の既定値へフォールバックする
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] テスト成功
+- [ ] `report.md` 更新
 - [ ] `update_plan` 更新
 - [ ] コミット（ユーザーが必要なら実施）
 

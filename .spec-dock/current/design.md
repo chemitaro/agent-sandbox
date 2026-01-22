@@ -153,6 +153,7 @@
         - 環境変数の尊重: `TZ` が起動スクリプトの環境変数として **非空で** 設定されている場合、起動スクリプトは `TZ` を注入しない
       - ただし、`.env` や環境変数で `TZ` が **空文字**（例: `TZ=`）の場合は “未設定” と同様に扱い、ホストの timezone を検出して注入する（空のままにしない）。
       - 未設定の場合はホストの timezone を検出して注入する（失敗時は `Asia/Tokyo`）
+      - 検出は **ベストエフォート** とし、`systemsetup` / `timedatectl` / `readlink` など外部コマンドが失敗しても CLI を終了させない（`set -euo pipefail` 下でも落ちないようにする）。
     - 理由:
       - `docker-compose.yml` は `TZ=${TZ}` をコンテナへ渡すため、未設定だとコンテナ内 `TZ` が空になり得る（`docker-compose.yml:27-33`）。
   - `CONTAINER_NAME=<computed>`（AC-004/011）

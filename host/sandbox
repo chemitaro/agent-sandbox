@@ -99,7 +99,7 @@ detect_timezone() {
     fi
     if [[ -L /etc/localtime ]]; then
         local target
-        target="$(readlink /etc/localtime)"
+        target="$(readlink /etc/localtime 2>/dev/null || true)"
         if [[ "$target" == *"/zoneinfo/"* ]]; then
             echo "${target##*/zoneinfo/}"
             return 0
@@ -115,7 +115,7 @@ detect_timezone() {
     fi
     if command -v systemsetup >/dev/null 2>&1; then
         local tz
-        tz="$(systemsetup -gettimezone 2>/dev/null | awk -F': ' '{print $2}')"
+        tz="$(systemsetup -gettimezone 2>/dev/null | awk -F': ' '{print $2}' || true)"
         if [[ -n "$tz" ]]; then
             echo "$tz"
             return 0
@@ -123,7 +123,7 @@ detect_timezone() {
     fi
     if command -v timedatectl >/dev/null 2>&1; then
         local tz
-        tz="$(timedatectl | awk -F'[: ]+' '/Time zone/ {print $3}')"
+        tz="$(timedatectl 2>/dev/null | awk -F'[: ]+' '/Time zone/ {print $3}' || true)"
         if [[ -n "$tz" ]]; then
             echo "$tz"
             return 0

@@ -639,3 +639,29 @@ bash tests/sandbox_git_detect.test.sh
 
 #### 変更したファイル
 - `.spec-dock/current/decision/S13_manual_steps.md`
+
+---
+
+### 2026-01-23 02:35 - 2026-01-23 03:00
+
+#### 対象
+- Step: S15（timezone 検出失敗の許容）
+
+#### 実施内容
+- timezone 検出の外部コマンド失敗を許容し、フォールバックできるように修正。
+- テスト追加: 失敗時でも `Asia/Tokyo` にフォールバックすることを確認。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_timezone.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox` - detect_timezone の失敗を許容
+- `tests/sandbox_timezone.test.sh` - タイムゾーン検出の失敗テストを追加
+- `.spec-dock/current/requirement.md` - 非交渉制約に best-effort を追記
+- `.spec-dock/current/design.md` - 検出失敗を許容する設計を追記
+- `.spec-dock/current/plan.md` - S15 を追加
+
+#### コミット
+- （未実施 / 禁止）
