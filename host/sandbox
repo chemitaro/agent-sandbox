@@ -483,12 +483,29 @@ auto_detect_mount_root() {
     local worktree_paths=()
     while IFS= read -r line; do
         if [[ "$line" == worktree\ * ]]; then
-            worktree_paths+=("${line#worktree }")
+            local path="${line#worktree }"
+            if [[ -d "$path" ]]; then
+                worktree_paths+=("$path")
+            else
+                echo "skip missing worktree: $path" >&2
+            fi
         fi
     done < <(git -C "$repo_root" worktree list --porcelain 2>/dev/null)
 
     if [[ ${#worktree_paths[@]} -eq 0 ]]; then
         worktree_paths+=("$repo_root")
+    else
+        local has_repo_root=false
+        local wt
+        for wt in "${worktree_paths[@]}"; do
+            if [[ "$wt" == "$repo_root" ]]; then
+                has_repo_root=true
+                break
+            fi
+        done
+        if [[ "$has_repo_root" == false ]]; then
+            worktree_paths+=("$repo_root")
+        fi
     fi
 
     local lca

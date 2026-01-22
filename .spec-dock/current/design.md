@@ -454,3 +454,6 @@ C --> User : interactive shell (pwd=/srv/mount/<rel>)
 
 ## 省略/例外メモ (必須)
 - 該当なし
+- worktree 自動推定の堅牢化:
+  - `git worktree list --porcelain` に削除済み（prunable）worktree が残ることがあるため、**存在しないパスは候補から除外**する
+  - 結果として候補が空になった場合は `repo_root` を候補として利用する

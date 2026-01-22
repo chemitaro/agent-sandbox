@@ -40,6 +40,7 @@
 - [ ] S02: `sandbox name` が合成名を1行で出力する
 - [ ] S03: パス決定（引数組み合わせ）と包含/変換ができる
 - [ ] S04: git worktree 自動推定と “広すぎる” ガードが動く
+- [ ] S14: prunable worktree を無視して自動推定できる
 - [ ] S05: Docker/Compose 不在はエラーで停止できる（help/nameは動く）
 - [ ] S06: `sandbox up` が build+up できる（stubで検証）
 - [ ] S07: `sandbox shell` が up 後に exec -w で接続できる（stubで検証）
@@ -56,6 +57,7 @@
 - AC-004, EC-004 → S02
 - AC-002, AC-007, AC-012, EC-001, EC-002 → S03
 - AC-001, AC-005, AC-013, EC-003 → S04
+- AC-005 → S14
 - EC-005 → S05
 - AC-014, AC-011, AC-003 → S06
 - AC-001, AC-002, AC-007, AC-012, AC-013 → S07
@@ -178,6 +180,27 @@
 - Given: worktree を含む git 状況（stub `git`）
 - When: 引数なし / `--workdir` のみで `mount-root` 自動推定
 - Then: LCA が求まり、禁止パスや up-level 超過はエラーで拒否される
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] テスト成功
+- [ ] `report.md` 更新
+- [ ] `update_plan` 更新
+- [ ] コミット（ユーザーが必要なら実施）
+
+---
+
+### S14 — prunable worktree を無視して自動推定できる (必須)
+- 対象: AC-005
+- 設計参照: 具体設計 3（worktree list のフィルタリング）
+- 対象テスト: `tests/sandbox_git_detect.test.sh::prunable_worktree_is_skipped`
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `git worktree list --porcelain` に **存在しない worktree パス** が含まれる
+- When: 引数なし / `--workdir` のみで `mount-root` 自動推定を行う
+- Then: 存在しないパスは無視され、残った候補から LCA が求まる（起動不能にならない）
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] テスト成功

@@ -602,3 +602,40 @@ bash tests/sandbox_paths.test.sh
 
 #### コミット
 - （未実施 / 禁止）
+
+---
+
+### 2026-01-23 02:00 - 2026-01-23 02:30
+
+#### 対象
+- Step: S14（prunable worktree の無視）
+
+#### 実施内容
+- `git worktree list --porcelain` に存在しないパスが含まれる場合はスキップするように修正。
+- worktree 候補が空になった場合は `repo_root` を候補に加える。
+- テスト追加: prunable worktree を含むケース。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_git_detect.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox` - prunable worktree を除外
+- `tests/sandbox_git_detect.test.sh` - prunable worktree のテストを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 02:30 - 2026-01-23 02:35
+
+#### 対象
+- 補足
+
+#### 実施内容
+- S13 手動検証手順を `.spec-dock/current/decision/S13_manual_steps.md` に配置。
+
+#### 変更したファイル
+- `.spec-dock/current/decision/S13_manual_steps.md`

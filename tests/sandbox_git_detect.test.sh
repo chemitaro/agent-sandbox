@@ -145,7 +145,36 @@ git_rev_parse_failure_errors() {
     fi
 }
 
+prunable_worktree_is_skipped() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    load_sandbox_functions "$tmp_dir"
+    setup_stub_git "$tmp_dir"
+
+    unset STUB_GIT_FAIL_REV_PARSE
+
+    local base="$tmp_dir/repo"
+    local main="$base/main"
+    local work1="$base/work1"
+    local missing="$base/old-worktree"
+    mkdir -p "$main" "$work1"
+    touch "$work1/.git"
+
+    export STUB_GIT_REV_PARSE_ROOT="$work1"
+    STUB_GIT_WORKTREE_LIST="$(printf 'worktree %s\nworktree %s\nworktree %s\n' "$main" "$work1" "$missing")"
+    export STUB_GIT_WORKTREE_LIST
+
+    CALLER_PWD="$work1"
+    parse_common_args --workdir "$work1"
+    determine_paths
+
+    local expected_root
+    expected_root="$(resolve_path "$base")"
+    assert_eq "$expected_root" "$ABS_MOUNT_ROOT"
+}
+
 run_test "auto_detect_mount_root_lca" auto_detect_mount_root_lca
 run_test "guard_forbidden_path_errors" guard_forbidden_path_errors
 run_test "guard_max_up_level_errors" guard_max_up_level_errors
 run_test "git_rev_parse_failure_errors" git_rev_parse_failure_errors
+run_test "prunable_worktree_is_skipped" prunable_worktree_is_skipped

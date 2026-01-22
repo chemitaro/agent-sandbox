@@ -230,6 +230,8 @@
       - 禁止パス（完全一致）: `/`, `$HOME`, `/Users`, `/home`, `/Volumes`, `/mnt`, `/media`
       - `git rev-parse --show-toplevel`（= repo root）から `mount-root` までの遡り階層数が **1 を超える**
         - 例: `repo_root=/a/b/repo` のとき、`mount-root=/a/b`（遡り=1）は許容し、`mount-root=/a`（遡り=2）は拒否する
+    - `git worktree list --porcelain` に削除済み（prunable）worktree が含まれている場合は **存在しないパスを無視して推定を続行する**
+      - すべての worktree パスが無効な場合は `repo_root` のみを候補として扱う
   - 観測点: Host 出力（エラーメッセージ、終了コード）
 - AC-006: （削除）既存運用の互換性
   - メモ: **2026-01-22 ユーザー合意**により、旧 `sandbox.config` / `make start` フローの互換性は要求しない（OUT OF SCOPE）。
