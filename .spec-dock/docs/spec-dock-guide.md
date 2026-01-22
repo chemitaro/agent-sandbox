@@ -23,19 +23,24 @@ Kent Beck と 和田卓人 (t-wada) の Red → Green → Refactor サイクル�
 
 ## 成果物とディレクトリ
 
+- `.spec-dock/spec-dock.version`
+  - 導入/更新した spec-dock のバージョン（1行）
 - `.spec-dock/current/`
   - 作業中の一時ディレクトリ（1つの作業単位を前提。混在させない）
   - `requirement.md`: 要件定義（WHAT/WHY）
   - `design.md`: 設計（HOW）
   - `plan.md`: 実装計画（TDD で回せる粒度）
   - `report.md`: 実装ログ（再現できる事実）
+  - `discussions/`: 議論/調査/ヒアリング等の補助資料置き場（原則Markdown。図はPlantUML。サブディレクトリ作成も含め自由）
 - `.spec-dock/templates/`
   - テンプレート（新規タスク開始時の雛形）
+  - `discussions/`: 議論/調査/ヒアリング資料の雛形置き場（例: `discussions/_template.md`。必要に応じて増やしてよい）
 - `.spec-dock/completed/`
   - 完了した成果物のアーカイブ
 
 ## テンプレート方針
-- `.spec-dock/templates/*.md` は「最終的に残る仕様/ログ」の雛形とし、原則として本文に運用ルールや作成手順を書かない（ルールはこの `spec-dock-guide.md` に集約する）。
+- `.spec-dock/templates/requirement.md` / `design.md` / `plan.md` / `report.md` は「最終的に残る仕様/ログ」の雛形とし、原則として本文に運用ルールや作成手順を書かない（ルールはこの `spec-dock-guide.md` に集約する）。
+- `discussions/_template.md` は「議論/調査/ヒアリング」資料の雛形。運用ルールはこのガイドを正としつつ、テンプレ内に最低限の説明を書いてよい。
 - テンプレートは **参考**。見出し/順番/粒度はタスクに合わせて自由に追加/削除/並び替えしてよい（“空欄を埋めるための推測”は禁止）。承認可否はこのガイドのチェックリストで判定する。
 - テンプレ見出しの末尾に `(必須)` / `(任意)` を付ける。`(必須)` は成果物（`.spec-dock/current/*.md`）から削除しない（該当しない場合は `該当なし` を明記）。`(任意)` は削除/追加してよい。
   - 付与対象: 主に `##` 見出し。必要に応じて `###`/`####` 見出しにも付けてよい（例: `plan.md` の各ステップ内の `update_plan` / `期待する振る舞い` / `ステップ末尾`）。
