@@ -313,8 +313,9 @@
   - `COMPOSE_PROJECT_NAME=$CONTAINER_NAME` を起動時に必ず注入する
     - 目的: 同一 compose ファイルから複数プロジェクトを共存させ、network 等の衝突を避ける
 - 事前判定（対象コンテナの有無）:
-  - まず Docker デーモンへ疎通できることを確認する（例: `docker version` / `docker info`）。
-    - 疎通できない場合は “対象なし” と誤判定せず、エラー（exit 0 ではない）とする（EC-005）。
+  - まず Docker デーモンへ疎通できることを確認する（stderr 文字列ではなく **終了コード** で判定する）。
+    - 例: `docker info >/dev/null 2>&1` を実行し、exit 0 なら疎通OK
+    - exit 非0 の場合は “対象なし” と誤判定せず、エラー（exit 0 ではない）とする（EC-005）。
   - 疎通できる前提で、`docker inspect "$container_name"` で `container_name` の存在を確認する。
     - 見つからない場合は `stop/down/status` はメッセージ+exit 0、`up/shell` は作成へ進む
     - `docker ps -a` の出力パースに依存せず、macOS/Linux 差や将来の出力変更の影響を受けにくくする
