@@ -28,8 +28,9 @@
 - Bash テストで “外部依存なし” を基本とする:
   - `docker` / `docker compose` / `git` は stub で置き換え、呼び出し内容（引数/環境変数/作業ディレクトリ）を検証する
   - 実ファイル（`.env` / `.agent-home`）を汚さないため、テストは `mktemp` で作る一時ディレクトリ上に最小の “疑似 SANDBOX_ROOT” を作って実行する
+    - 例: `mktemp` 配下に `host/sandbox` を `tmp/host/sandbox` としてコピーして実行すると、その `tmp` 自体が SANDBOX_ROOT になる（`host/sandbox` は“自分のパス”から SANDBOX_ROOT を決めるため）
   - テストの重複を避けるため、共通ヘルパ（例: `tests/_helpers.sh`）を追加し、以下を提供する:
-    - `make_fake_sandbox_root`（`docker-compose.yml` / `.env` / `.agent-home` の疑似ルート生成）
+    - `make_fake_sandbox_root`（`docker-compose.yml` 等の疑似ルート生成。副作用なしテスト向けに `.env`/`.agent-home` を **作らない** モードも持つ）
     - `stub_docker` / `stub_docker_compose` / `stub_git`（PATH先頭へ差し込む）
     - `assert_stdout_eq` / `assert_stderr_contains` / `assert_exit_code`
     - `assert_no_files_created`（副作用なしの担保: `.env` / `.agent-home` が作られていないこと）
@@ -146,12 +147,16 @@
 - [ ] `update_plan` に登録した
 
 #### 期待する振る舞い（テストケース） (必須)
-- Given: `--mount-root` のみ指定（`--workdir` は省略）
+- Given: `CALLER_PWD` と `--mount-root`/`--workdir` の組み合わせ（複数ケース）
 - When: `tests/sandbox_paths.test.sh` で “パス決定/包含判定/コンテナ内パス変換” の純粋ロジックを直接検証する（`sandbox name` の stdout 1行契約に依存しない）
-- Then:
-  - `workdir=mount-root` に補完される
-  - `container_workdir=/srv/mount` になる
-  - `workdir ∉ mount-root` は EC-001 としてエラーになる
+- Then: 最低限、以下が観測できる
+  - `--mount-root` のみ → `workdir=mount-root` に補完され、`container_workdir=/srv/mount`
+  - `--mount-root` + `--workdir`（配下） → `container_workdir=/srv/mount/<relative>`
+  - `workdir ∉ mount-root` → EC-001 としてエラー
+  - 境界判定で誤判定しない（`/a/b` と `/a/bb` のようなケース）
+  - 空白を含むパスでも壊れない（EC-002）
+  - 相対パスは `CALLER_PWD` 基準で正しく解決される
+  - 末尾 `/` の有無などは正規化される
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] テスト成功
@@ -428,14 +433,14 @@
 #### 期待する振る舞い（テストケース） (必須)
 - Given:
   - ホストで Docker が利用できる
-  - `/Users/iwasawayuuta/workspace/product/taikyohiyou_project` が存在する
+  - `/Users/iwasawayuuta/workspace/product/taikyohiyou_project` が存在する（無い場合は同等の DoD 対象リポジトリで代替可。採用した代替パスは `report.md` に記録する）
 - When:
-  - `taikyohiyou_project` を作業対象に `sandbox shell` で起動/接続する
+  - 作業対象リポジトリ（`taikyohiyou_project` または代替）を対象に `sandbox shell` で起動/接続する
   - コンテナ内で `docker version` を実行する
-  - コンテナ内で `taikyohiyou_project/scripts/git/detect_git_env.sh` を実行する
+  - コンテナ内で DoD を前提とする検証スクリプトを実行する（例: `taikyohiyou_project/scripts/git/detect_git_env.sh`）
 - Then:
   - `docker version` が失敗しない（DoD が利用できる）
-  - `detect_git_env.sh` が期待通りの “コンテナ内パス→ホストパス変換” を行える（例: `.env.git` の `CURRENT_PROJECT_PATH` がホスト絶対パスになる）
+  - 検証スクリプトが期待通りの “コンテナ内パス→ホストパス変換” を行える（例: `taikyohiyou_project` では `.env.git` の `CURRENT_PROJECT_PATH` がホスト絶対パスになる）
   - 参考観測: `echo "$HOST_PRODUCT_PATH"` が `abs_mount_root`、`echo "$PRODUCT_WORK_DIR"` が `/srv/mount`
 
 #### ステップ末尾（省略しない） (必須)
