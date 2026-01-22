@@ -102,7 +102,8 @@
       - `--mount-root <path>` のみ: `workdir=mount-root` に補完
       - `--workdir <path>` のみ: `mount-root` を git 解析で自動推定に補完（非gitなら `mount-root=workdir`）
     - 例外（ヘルプ）:
-      - `help` / `-h` / `--help` は **パス決定・検証より先に処理**し、無効なパス指定が混ざっていてもヘルプを表示して exit 0 で終了する（例: `sandbox help --workdir /nope`）。
+      - `help` / `-h` / `--help` は **パス決定・検証より先に処理**し、無効なパス指定が混ざっていてもヘルプを表示して exit 0 で終了する。
+        - `-h/--help` は **引数のどこに現れても最優先**（例: `sandbox help --workdir /nope` / `sandbox shell --workdir /nope --help`）。
   - 振る舞い（サブコマンド別）:
     - `sandbox shell` / `sandbox`:
       - 対象コンテナが起動していなければ起動する（必要なら build）
@@ -137,6 +138,7 @@
       - `workdir`（ホスト絶対パス / realpath）
       - 形式: `key: value`（1行1キー）
       - 追加情報（任意）: 対象が無い場合は `message: 対応するコンテナがありません` 等を追加してよい
+    - `sandbox name` / `sandbox status` / `sandbox help` は stdout が契約のため、デバッグログ等は stderr に出して stdout を汚さない
     - それ以外: 選ばれた `mount-root` / `workdir` / `container_name`（必要に応じて `container_workdir`）
   - 終了コード:
     - 0: 成功（`stop`/`down` は “対象が無い” 場合も成功）
@@ -185,7 +187,9 @@
 
 ### 0.1) `SANDBOX_ROOT` 側の事前準備（`.env` / `.agent-home`）
 - 適用範囲:
-  - **compose を呼ぶサブコマンドのみ**で実施する（`shell` / `up` / `build` / `stop` / `down`）。
+  - **`docker compose` を呼ぶ必要が確定した場合のみ**で実施する。
+    - 常に実施: `shell` / `up` / `build`
+    - 条件付きで実施: `stop` / `down`（対象コンテナが存在する場合のみ。対象なしの場合は no-op として exit 0）
   - `help` / `name` / `status` は副作用なしである必要があるため、この事前準備は行わない（ホスト側のファイル生成/更新をしない）。
 - `.env`:
   - `SANDBOX_ROOT/.env` が存在しない場合は **空ファイルを作成**して起動を継続する（IF-COMPOSE-001）。
@@ -291,6 +295,9 @@
   - 最大長の目安: 63 文字（既存 `generate-env.sh` と整合）
 
 ### 7) 起動・接続（compose / docker）
+- 前提（Docker）:
+  - `sandbox shell/up/build/stop/down/status` はホストの Docker に依存するため、`docker` コマンドが存在し、かつデーモンに疎通できる必要がある（要件 EC-005）。
+  - `help/name` は Docker を使わない（副作用なし）。
 - compose コマンド:
   - 優先: `docker compose`（v2）
   - fallback: `docker-compose`（v2 相当のみ。v1 系は `name:` 等により失敗し得るため、検出して拒否する）
@@ -306,7 +313,10 @@
   - `COMPOSE_PROJECT_NAME=$CONTAINER_NAME` を起動時に必ず注入する
     - 目的: 同一 compose ファイルから複数プロジェクトを共存させ、network 等の衝突を避ける
 - 事前判定（対象コンテナの有無）:
-  - `docker inspect "$container_name"` で `container_name` の存在を確認する（無ければ `stop/down/status` はメッセージ+exit 0、`up/shell` は作成へ進む）
+  - まず Docker デーモンへ疎通できることを確認する（例: `docker version` / `docker info`）。
+    - 疎通できない場合は “対象なし” と誤判定せず、エラー（exit 0 ではない）とする（EC-005）。
+  - 疎通できる前提で、`docker inspect "$container_name"` で `container_name` の存在を確認する。
+    - 見つからない場合は `stop/down/status` はメッセージ+exit 0、`up/shell` は作成へ進む
     - `docker ps -a` の出力パースに依存せず、macOS/Linux 差や将来の出力変更の影響を受けにくくする
 - `sandbox up`（AC-014）:
   - 既存コンテナが無ければ `docker compose up -d --build`
@@ -319,19 +329,19 @@
 - `sandbox build`（AC-017）:
   - `docker compose build` を実行する（起動/接続は行わない）
 - `sandbox stop`（AC-015）:
-  - 対象コンテナが存在する場合は `docker compose stop` を実行する
-  - 存在しない場合はメッセージを表示し、exit 0
+  - 対象コンテナが存在する場合のみ `docker compose stop` を実行する（この時点で 0.1 の事前準備を行う）
+  - 存在しない場合はメッセージを表示し、**`docker compose` を呼ばず**、exit 0（no-op）
 - `sandbox down`（AC-016）:
-  - 対象コンテナが存在する場合は `docker compose down` を実行する（停止+削除）
-  - 存在しない場合はメッセージを表示し、exit 0
+  - 対象コンテナが存在する場合のみ `docker compose down` を実行する（停止+削除）（この時点で 0.1 の事前準備を行う）
+  - 存在しない場合はメッセージを表示し、**`docker compose` を呼ばず**、exit 0（no-op）
 - `sandbox status`（AC-020）:
   - 対象コンテナが存在する場合:
     - `docker inspect "$container_name"` により以下を取得して表示する
       - `status`: `.State.Status`（例: `running` / `exited` / `created` など）
       - `container_id`: `.Id` の先頭12文字（短縮ID）
   - 存在しない場合:
-    - `docker inspect` が “No such object” 相当で失敗するため、それを検知して `status=not-found` として表示する
-    - メッセージを表示し、exit 0
+    - Docker デーモンに疎通できる前提で、`docker inspect` が “No such object” 相当で失敗した場合は `status=not-found` として表示し、メッセージを表示して exit 0
+    - “No such object” 以外の失敗（Docker デーモン未起動など）は `not-found` 扱いにせず、エラー（exit 0 ではない）とする（EC-005）
 
 ### 8) 共有 env（秘密情報/任意環境変数）
 - 目的: `env_file` を “インスタンスごとに生成” せず、かつ任意の環境変数（GH_TOKEN など）をコンテナへ渡せるようにする。

@@ -12,7 +12,7 @@
 
 ## 目的（ユーザーに見える成果 / To-Be） (必須)
 - このリポジトリ（`agent-sandbox`）をプロジェクトごとに clone せずに、任意のディレクトリを作業対象としてコンテナを起動できる。
-- 引数指定なしの場合は、実行時のカレントディレクトリ（PWD）を初期作業ディレクトリとしつつ、git worktree を含む作業範囲を自動推定してマウントできる。
+- 引数指定なしの場合は、**sandbox 実行時のカレントディレクトリ（呼び出し元PWD）** を初期作業ディレクトリとしつつ、git worktree を含む作業範囲を自動推定してマウントできる。
 - 異なる作業ディレクトリ（およびマウント親）を対象に、複数コンテナを同時に起動・共存できる。
 - 既存の Docker-on-Docker（sandbox コンテナ内からホスト Docker を操作する）運用が継続できる。
 
@@ -95,6 +95,7 @@
       - `sandbox <subcommand> -h` / `sandbox <subcommand> --help` で、そのサブコマンドのヘルプを表示できる
     - すべてのサブコマンドは同じ引数（`--mount-root` / `--workdir`）を受け取り、同一のパス決定・ガード・コンテナ名算出ロジックを使う。
       - ただし `help` / `-h` / `--help` は **例外** とし、パス決定・検証（存在確認/ガード）をスキップしてヘルプを表示し、exit 0 で終了する（無効なパス指定が混ざっていても落とさない）。
+        - `-h/--help` は **引数のどこに現れても最優先**（例: `sandbox shell --workdir /nope --help` でも exit 0 でヘルプ表示）
     - `sandbox shell` は “起動 + 接続” を包含する:
       - 対象コンテナが起動していない場合は起動する（必要なら build も行う）
       - 起動後、`workdir` に対応するコンテナ内パスへ `exec -w` で接続する
@@ -120,7 +121,7 @@
     - git 管理外ディレクトリの場合は `mount-root=workdir=呼び出し元PWD` とする。
   - git worktree に対応する:
     - `mount-root` は “main + 全 worktree を包含するディレクトリ” を自動推定できること（ただしガードあり）。
-    - 初期作業ディレクトリは PWD（または指定）に一致すること。
+    - 初期作業ディレクトリは 呼び出し元PWD（または指定）に一致すること。
   - 複数コンテナを同時に起動可能にする:
     - コンテナの同一性キーは `(abs_mount_root, abs_workdir)` とする（両方 realpath/絶対パス化）。
     - 同一性キーが異なれば別コンテナとして起動する（並行稼働できる）。
@@ -138,6 +139,7 @@
     - 1つの `docker-compose.yml` を使い回し、インスタンス固有値は起動コマンド実行時に注入する。
     - `.env` は secrets/common の静的ファイルとしてユーザーが管理し、ツールは **秘密情報を含む `.env` を自動生成/上書きしない**。
       - ただし、`docker-compose.yml` の `env_file: .env` により起動が失敗しないよう、`.env` が存在しない場合のみ **空の `.env` を作成して継続してよい**（空ファイル作成は secrets 生成ではない）。
+      - この空 `.env` 作成や `.agent-home` 作成などの “前準備” は `docker compose` を実行するサブコマンドでのみ起こり得る。`help/name/status` では行わない（`stop/down` は「対象が存在しない」と確定した場合は no-op）。
 - MUST NOT（絶対にやらない／追加しない）:
   - コンテナ名の手動指定機能（`--name` 等）は追加しない。
   - “広すぎる” `mount-root` を自動推定した場合、無理に包含しない（エラーで拒否する）。
@@ -183,12 +185,12 @@
 ## 受け入れ条件（観測可能な振る舞い） (必須)
 - AC-001: 引数なし起動（git worktree 自動推定）
   - Actor/Role: 開発者
-  - Given: git 管理下のディレクトリ（worktree を含む可能性あり）で PWD が作業対象である
+  - Given: git 管理下のディレクトリ（worktree を含む可能性あり）で 呼び出し元PWD が作業対象である
   - When: `sandbox`（=`sandbox shell`）を引数なしで実行する
   - Then:
-    - `workdir` は PWD が採用される
+    - `workdir` は 呼び出し元PWD が採用される
     - `mount-root` は git 情報を解析して自動推定される（worktree を包含）
-    - コンテナが起動し、初期作業ディレクトリが PWD 相当のパスになる
+    - コンテナが起動し、初期作業ディレクトリが 呼び出し元PWD 相当のパスになる
   - 観測点:
     - Host 出力: `mount-root` / `workdir` / コンテナ名が表示される
     - Container: `pwd` が期待通り
@@ -233,7 +235,7 @@
   - メモ: **2026-01-22 ユーザー合意**により、旧 `sandbox.config` / `make start` フローの互換性は要求しない（OUT OF SCOPE）。
 - AC-007: 引数なし起動（git 管理外ディレクトリ）
   - Actor/Role: 開発者
-  - Given: git 管理外のディレクトリで PWD が作業対象である
+  - Given: git 管理外のディレクトリで 呼び出し元PWD が作業対象である
   - When: `sandbox`（=`sandbox shell`）を引数なしで実行する
   - Then:
     - `mount-root=workdir=呼び出し元PWD` が採用される
@@ -269,7 +271,7 @@
 - AC-011: 同一 instance key の再実行でコンテナが増えない（再利用）
   - Actor/Role: 開発者
   - Given: 同一の `(abs_mount_root, abs_workdir)` で動的マウント起動を実行できる
-  - When: 同じ引数（または同じ PWD からの引数なし起動）で複数回起動する
+  - When: 同じ引数（または同じ 呼び出し元PWD からの引数なし起動）で複数回起動する
   - Then:
     - 同一コンテナ名が選ばれ、コンテナが “増殖” しない
     - 既に存在するが停止中の場合は、そのコンテナが再起動される
@@ -313,6 +315,7 @@
   - Then:
     - 対象コンテナが存在する場合は停止する
     - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）する
+      - 対象が存在しないと確定した場合は、`docker compose` を呼ばず、ホスト側ファイルの生成/更新（空 `.env` 作成や `.agent-home` 作成など）も行わない（真に no-op）
   - 観測点: Host 出力 / `docker ps -a` / OrbStack UI
 - AC-016: `sandbox down`（停止＋削除）
   - Actor/Role: 開発者
@@ -321,6 +324,7 @@
   - Then:
     - 対象コンテナが存在する場合は docker compose down 相当で停止＋削除する
     - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）する
+      - 対象が存在しないと確定した場合は、`docker compose` を呼ばず、ホスト側ファイルの生成/更新（空 `.env` 作成や `.agent-home` 作成など）も行わない（真に no-op）
   - 観測点: Host 出力 / `docker ps -a` / OrbStack UI
 - AC-017: `sandbox build`（ビルドのみ）
   - Actor/Role: 開発者
@@ -339,6 +343,7 @@
     - ヘルプ（Usage/サブコマンド一覧/共通引数/例）が標準出力に表示される
     - 終了コード 0 で終了する
     - `--mount-root` / `--workdir` に無効なパスが混ざっていても、パス検証を行わずにヘルプを表示できる（例: `sandbox help --workdir /nope` でも落ちない）
+    - `-h/--help` は引数のどこに現れても最優先で、ヘルプ表示して exit 0（例: `sandbox shell --workdir /nope --help`）
     - ホスト側ファイルの生成/更新や、Docker/Compose の操作は行わない（副作用なし）
   - 観測点: Host 出力 / 終了コード
   - 補足:
@@ -351,6 +356,7 @@
     - 対象インスタンスの `container_name` が **標準出力に 1 行だけ** 出力される（末尾改行あり）
     - Docker の状態（存在/稼働/停止）は問わない（Docker を見に行かない）
     - 終了コード 0 で終了する
+    - 追加のログ/デバッグ情報は標準エラー出力に出し、標準出力（1行）を汚さない
     - `.env` や `.agent-home` の作成を含む、ホスト側ファイルの生成/更新は行わない（副作用なし）
   - 観測点: Host 出力（stdout）/ 終了コード
   - 補足:
@@ -380,6 +386,7 @@
     - `mount_root` / `workdir` はホスト絶対パス（realpath）になる
     - 起動/ビルド/接続は行わない（副作用なし）
     - `.env` や `.agent-home` の作成を含む、ホスト側ファイルの生成/更新は行わない
+    - 追加のログ/デバッグ情報は標準エラー出力に出し、標準出力（key/value行）を汚さない
   - 観測点:
     - Host 出力（stdout）
     - 終了コード（対象が存在しない場合も 0）
@@ -417,9 +424,18 @@
     - 正規化の結果可読部が空になる場合でも、起動不能にならない（fallback で最低限の名前を確保）
   - 観測点: Host 出力 / `docker ps` の名前表示 / 起動成功
 
+- EC-005: Docker/Compose が利用できない（未インストール / デーモン未起動 / 疎通不可）
+  - 条件: ホストで `docker` が見つからない、または `docker` がデーモンに接続できない（例: `Cannot connect to the Docker daemon...`）
+  - 期待:
+    - `sandbox shell` / `sandbox up` / `sandbox build` / `sandbox stop` / `sandbox down` / `sandbox status` はエラーで終了する（exit 0 ではない）
+    - “not-found” と誤判定しない（`status=not-found` は「Docker が利用でき、かつ対象コンテナが存在しない」と確定できた場合のみ）
+    - エラー理由と対処（Docker起動/インストール等）が分かるメッセージを出す
+    - `sandbox help` / `sandbox name` は Docker を使わないため、Docker 不在でも動作できる
+  - 観測点: Host 出力（stderr など）/ 終了コード
+
 ## 用語（ドメイン語彙） (必須)
 - TERM-001: mount-root = ホスト側で bind mount する “親ディレクトリ”（動的マウント起動モードで、コンテナ内 `/srv/mount` に載る）
-- TERM-002: workdir = コンテナ起動後に最初に入る作業ディレクトリ（PWD 由来 or 指定）
+- TERM-002: workdir = コンテナ起動後に最初に入る作業ディレクトリ（呼び出し元PWD 由来 or 指定）
 - TERM-003: instance key = `(abs_mount_root, abs_workdir)`（realpath/絶対パス）で表すコンテナ同一性
 - TERM-004: slug = コンテナ名に含める可読部（`basename(mount-root)` と `basename(workdir)` の組）
 - TERM-005: `PRODUCT_WORK_DIR` = Docker-on-Docker 用の “コンテナ内” マウント基準パス（= `HOST_PRODUCT_PATH` に対応するコンテナ内の基準パス）

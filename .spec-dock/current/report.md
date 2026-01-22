@@ -75,6 +75,40 @@ rg -n "CALLER_PWD|help --workdir|docker inspect|TZ=\\)" .spec-dock/current/desig
 #### メモ
 - まだ設計フェーズ。次はユーザー承認後に `plan.md` を作成して実装へ進む。
 
+---
+
+### 2026-01-22 15:46 - 2026-01-22 16:14
+
+#### 対象
+- Step: （計画フェーズ / ドキュメント更新）
+- AC/EC: AC-015, AC-016, AC-018, AC-020, EC-005
+
+#### 実施内容
+- レビューフィードバックを反映し、以下を仕様として明確化:
+  - 用語統一: `PWD` 表記を “呼び出し元PWD（= sandbox 実行時のPWD）” に統一
+  - `-h/--help` は **引数のどこに現れても最優先**（`sandbox shell --workdir /nope --help` でも exit 0）
+  - `stop/down` は “対象なし” が確定した場合は **真に no-op**（`docker compose` を呼ばず、`.env/.agent-home` も作らない）
+  - Docker/Compose 不在・デーモン疎通不可は `not-found` と区別して **非0でエラー**（EC-005）
+  - `name/status` の stdout 契約を守るため、デバッグログは stderr に寄せる方針を追加
+- `.spec-dock/current/plan.md` を FEAT-005 の実装計画として作成（ステップ分割/要件マッピング）。
+
+#### 実行コマンド / 結果
+```bash
+rg -n "\\bPWD\\b|-h/--help|no-op|EC-005|stderr" .spec-dock/current/requirement.md .spec-dock/current/design.md
+sed -n '1,120p' .spec-dock/current/plan.md
+```
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md` - PWD表記統一、help優先順位、stop/down no-op、EC-005、stdout/stderr方針
+- `.spec-dock/current/design.md` - help優先順位（どこでも）、0.1適用範囲、stop/down no-op、docker疎通/失敗分類、stdout/stderr方針
+- `.spec-dock/current/plan.md` - 実装計画を記述（S01-S12）
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- 次は plan.md に従って実装フェーズへ進む（ユーザー承認後）。
+
 ## 遭遇した問題と解決 (任意)
 - 該当なし
 
