@@ -97,7 +97,9 @@
 - IF-ENV-001: 変数注入（docker compose 実行時）
   - `TZ=<timezone>`（未設定なら検出して注入する）
     - ルール:
-      - 既に `TZ` が設定されている場合（ユーザーの `.env` や環境変数）はそれを尊重する（上書きしない）
+      - 既に `TZ` が設定されている場合（ユーザーの `.env` または起動時の環境変数）はそれを尊重する（上書きしない）
+        - `.env` の尊重: `SANDBOX_ROOT/.env` に `TZ=` が定義されている場合、起動スクリプトは `TZ` を注入しない（compose の `.env` 読み込みに任せる）
+        - 環境変数の尊重: `TZ` が起動スクリプトの環境変数として設定されている場合、起動スクリプトは `TZ` を注入しない
       - 未設定の場合はホストの timezone を検出して注入する（失敗時は `Asia/Tokyo`）
     - 理由:
       - `docker-compose.yml` は `TZ=${TZ}` をコンテナへ渡すため、未設定だとコンテナ内 `TZ` が空になり得る（`docker-compose.yml:27-33`）。
@@ -160,6 +162,8 @@
   - `abs_mount_root = realpath(--mount-root)`
   - `abs_workdir = realpath(--workdir)`
   - `abs_workdir` が `abs_mount_root` 配下でなければ EC-001 エラー（フォールバックせず停止）
+    - 配下判定は単純な文字列前方一致で行わない（例: `/a/b` と `/a/bb` を誤判定しない）
+    - 判定ルール: `abs_workdir == abs_mount_root` または `abs_workdir` が `abs_mount_root + "/"` で始まる（`abs_mount_root="/"` は例外）
 - `--mount-root` のみ（Q-005 決定）:
   - `abs_mount_root = realpath(--mount-root)`
   - `abs_workdir = abs_mount_root`
@@ -213,6 +217,9 @@
   - `key = abs_mount_root + "\n" + abs_workdir`（フルパス、正規化後）
 - hash:
   - `sha256(key)` の hex 先頭 12 文字（固定長、決定的）
+  - 実装方針（macOS 互換）:
+    - 優先: `sha256sum`
+    - fallback: `shasum -a 256`
 - slug（可読部）:
   - `a = basename(abs_mount_root)`, `b = basename(abs_workdir)`
   - `a == b` なら `slug=b`、異なれば `slug=a-b`
