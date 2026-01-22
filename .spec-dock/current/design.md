@@ -54,7 +54,7 @@
 
 ### 採用するパターン
 - ホスト側は Bash スクリプトで完結（既存と整合）。
-- コンテナ同一性は “決定的” にし、コンテナ名で再利用判定（`docker ps -a` / `docker inspect`）ができるようにする。
+- コンテナ同一性は “決定的” にし、コンテナ名で再利用判定（`docker inspect`）ができるようにする。
 
 ### 採用しない/変更しない（理由）
 - Devcontainer は今回切り捨てる（要件 OUT OF SCOPE）。
@@ -66,7 +66,7 @@
 
 ## 主要フロー（テキスト：AC単位で短く） (任意)
 - Flow for AC-001（引数なし起動 / git worktree 自動推定）:
-  1) `workdir=PWD` を決定（実在確認→絶対パス化）
+  1) `workdir=呼び出し元PWD` を決定（実在確認→絶対パス化）
   2) `git` を実行して worktree 一覧を取得し、全 worktree を包含する `mount-root` を推定
   3) “広すぎる” ならエラーで終了（明示指定を促す）
   4) `instance key` → `container_name` を決定
@@ -97,10 +97,12 @@
   - 引数（共通）:
     - すべてのサブコマンドは `--mount-root <path>` / `--workdir <path>` を受け取る
     - `mount-root/workdir` の決定ルールは「具体設計 2)」に従う
-      - 引数なし: `workdir=PWD`、`mount-root` は git 解析で自動推定（非gitなら `mount-root=PWD`）
+      - 引数なし: `workdir=呼び出し元PWD`、`mount-root` は git 解析で自動推定（非gitなら `mount-root=呼び出し元PWD`）
       - `--mount-root <path> --workdir <path>`: 明示指定（両方）
       - `--mount-root <path>` のみ: `workdir=mount-root` に補完
       - `--workdir <path>` のみ: `mount-root` を git 解析で自動推定に補完（非gitなら `mount-root=workdir`）
+    - 例外（ヘルプ）:
+      - `help` / `-h` / `--help` は **パス決定・検証より先に処理**し、無効なパス指定が混ざっていてもヘルプを表示して exit 0 で終了する（例: `sandbox help --workdir /nope`）。
   - 振る舞い（サブコマンド別）:
     - `sandbox shell` / `sandbox`:
       - 対象コンテナが起動していなければ起動する（必要なら build）
@@ -145,8 +147,9 @@
   - `TZ=<timezone>`（未設定なら検出して注入する）
     - ルール:
       - 既に `TZ` が設定されている場合（ユーザーの `.env` または起動時の環境変数）はそれを尊重する（上書きしない）
-        - `.env` の尊重: `SANDBOX_ROOT/.env` に `TZ=` が定義されている場合、起動スクリプトは `TZ` を注入しない（compose の `.env` 読み込みに任せる）
-        - 環境変数の尊重: `TZ` が起動スクリプトの環境変数として設定されている場合、起動スクリプトは `TZ` を注入しない
+        - `.env` の尊重: `SANDBOX_ROOT/.env` に `TZ=` が **非空で** 定義されている場合、起動スクリプトは `TZ` を注入しない（compose の `.env` 読み込みに任せる）
+        - 環境変数の尊重: `TZ` が起動スクリプトの環境変数として **非空で** 設定されている場合、起動スクリプトは `TZ` を注入しない
+      - ただし、`.env` や環境変数で `TZ` が **空文字**（例: `TZ=`）の場合は “未設定” と同様に扱い、ホストの timezone を検出して注入する（空のままにしない）。
       - 未設定の場合はホストの timezone を検出して注入する（失敗時は `Asia/Tokyo`）
     - 理由:
       - `docker-compose.yml` は `TZ=${TZ}` をコンテナへ渡すため、未設定だとコンテナ内 `TZ` が空になり得る（`docker-compose.yml:27-33`）。
@@ -181,6 +184,9 @@
   - `SANDBOX_ROOT = realpath(dirname(SCRIPT_PATH)/..)`（`host/sandbox` を前提）
 
 ### 0.1) `SANDBOX_ROOT` 側の事前準備（`.env` / `.agent-home`）
+- 適用範囲:
+  - **compose を呼ぶサブコマンドのみ**で実施する（`shell` / `up` / `build` / `stop` / `down`）。
+  - `help` / `name` / `status` は副作用なしである必要があるため、この事前準備は行わない（ホスト側のファイル生成/更新をしない）。
 - `.env`:
   - `SANDBOX_ROOT/.env` が存在しない場合は **空ファイルを作成**して起動を継続する（IF-COMPOSE-001）。
   - 既存 `.env` は **上書きしない**（secrets 保護）。
@@ -201,8 +207,10 @@
 - ルール:
   - `mount-root` / `workdir` はディレクトリとして存在する必要がある。
   - 末尾スラッシュは比較前に除去（ただし `/` は例外）。
+  - 相対パス（`./x` や `../x`）が渡された場合は **呼び出し元ディレクトリ**（`CALLER_PWD`）を基準に解決する（`SANDBOX_ROOT` へ `cd` した後でも解釈がブレないようにする）。
 - 実装方針（Bash）:
-  - `cd "$path" && pwd -P` により symlink 解決済みの絶対パスを得る（macOS でも動く前提）。
+  - `CALLER_PWD="$PWD"` を **最初に確保**する（後続の `cd "$SANDBOX_ROOT"` の影響を受けないようにする）。
+  - `cd "$CALLER_PWD" && cd "$path" && pwd -P` により symlink 解決済みの絶対パスを得る（macOS でも動く前提）。
 
 ### 2) `mount-root` / `workdir` 決定
 - 明示指定（AC-002）:
@@ -222,7 +230,7 @@
   - “広すぎる” 判定（AC-005）に引っかかる場合はエラー（明示指定を促す）
   - `abs_workdir` が `abs_mount_root` 配下でなければ EC-001 エラー（通常は発生しない想定だが、異常系として扱う）
 - 引数なし（AC-001/007）:
-  - `abs_workdir = realpath(PWD)`
+  - `abs_workdir = realpath(CALLER_PWD)`
   - `abs_mount_root`:
     - git 管理下なら「main + 全 worktree のパス一覧」の共通祖先ディレクトリを推定
     - git 管理外なら `abs_mount_root = abs_workdir`
@@ -298,7 +306,8 @@
   - `COMPOSE_PROJECT_NAME=$CONTAINER_NAME` を起動時に必ず注入する
     - 目的: 同一 compose ファイルから複数プロジェクトを共存させ、network 等の衝突を避ける
 - 事前判定（対象コンテナの有無）:
-  - `docker ps -a` で `container_name` の存在を確認する（無ければ `stop/down` はメッセージ+exit 0、`up/shell` は作成へ進む）
+  - `docker inspect "$container_name"` で `container_name` の存在を確認する（無ければ `stop/down/status` はメッセージ+exit 0、`up/shell` は作成へ進む）
+    - `docker ps -a` の出力パースに依存せず、macOS/Linux 差や将来の出力変更の影響を受けにくくする
 - `sandbox up`（AC-014）:
   - 既存コンテナが無ければ `docker compose up -d --build`
   - 既存コンテナが停止中なら `docker compose up -d`（または `start`）
@@ -389,12 +398,13 @@
 - 方針:
   - Docker を使わない “純粋ロジック” を Bash のユニットテストで固める（CI/ローカルで軽い）。
   - Docker を使う検証（AC-009/010 等）は手動/運用確認を残しつつ、可能なら後続で integration に昇格。
-- 追加するテスト（案）:
-  - Unit（Bash）:
-    - `tests/sandbox_name.test.sh`: slug 正規化 / 63文字制限 / hash 決定性（AC-004, EC-004）
-    - `tests/sandbox_paths.test.sh`: `container_workdir` 変換（AC-001/002/007/012/013, EC-001）
-    - `tests/sandbox_git_detect.test.sh`: worktree list パース→LCA→ガード（AC-001/005/013, EC-003）
-    - `tests/sandbox_cli.test.sh`: サブコマンド分岐と idempotent な stop/down、help/name/status（AC-014/015/016/017/018/019/020）
+  - 追加するテスト（案）:
+    - Unit（Bash）:
+      - `tests/sandbox_name.test.sh`: slug 正規化 / 63文字制限 / hash 決定性（AC-004, EC-004）
+      - `tests/sandbox_paths.test.sh`: `container_workdir` 変換（AC-001/002/007/012/013, EC-001）
+      - `tests/sandbox_git_detect.test.sh`: worktree list パース→LCA→ガード（AC-001/005/013, EC-003）
+      - `tests/sandbox_cli.test.sh`: サブコマンド分岐と idempotent な stop/down、help/name/status（AC-014/015/016/017/018/019/020）
+        - 例: `sandbox help --workdir /nope` が exit 0 で help 表示される（ヘルプがパス検証をスキップすることの担保）
 - 実行コマンド（案）:
   - `bash tests/sandbox_name.test.sh`
   - `bash tests/sandbox_paths.test.sh`

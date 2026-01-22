@@ -94,6 +94,7 @@
       - `sandbox -h` / `sandbox --help` でヘルプを表示できる（`sandbox help` と同義）
       - `sandbox <subcommand> -h` / `sandbox <subcommand> --help` で、そのサブコマンドのヘルプを表示できる
     - すべてのサブコマンドは同じ引数（`--mount-root` / `--workdir`）を受け取り、同一のパス決定・ガード・コンテナ名算出ロジックを使う。
+      - ただし `help` / `-h` / `--help` は **例外** とし、パス決定・検証（存在確認/ガード）をスキップしてヘルプを表示し、exit 0 で終了する（無効なパス指定が混ざっていても落とさない）。
     - `sandbox shell` は “起動 + 接続” を包含する:
       - 対象コンテナが起動していない場合は起動する（必要なら build も行う）
       - 起動後、`workdir` に対応するコンテナ内パスへ `exec -w` で接続する
@@ -110,12 +111,13 @@
       - 対象インスタンスの `container_name` を **合成し**、そのコンテナの存在/状態/ID を表示する
       - 対象コンテナが存在しない場合は「対応するコンテナがありません」等を表示し、成功終了（exit 0）する
       - 起動/ビルド/接続は行わない（副作用なし）
+      - `.env` や `.agent-home` の作成を含む、ホスト側ファイルの生成/更新は行わない
   - `mount-root`（マウント親）と `workdir`（初期作業ディレクトリ）を分離して扱えるようにする。
     - 両方指定された場合は指定通りに採用する。
     - `--mount-root` のみ指定された場合は `workdir=mount-root` に補完する。
     - `--workdir` のみ指定された場合は git を解析して `mount-root` を自動推定する（非gitなら `mount-root=workdir`）。
-    - 何も指定しない場合は `workdir=PWD` とし、git を解析して `mount-root` を自動推定する。
-    - git 管理外ディレクトリの場合は `mount-root=workdir=PWD` とする。
+    - 何も指定しない場合は `workdir=呼び出し元PWD` とし、git を解析して `mount-root` を自動推定する。
+    - git 管理外ディレクトリの場合は `mount-root=workdir=呼び出し元PWD` とする。
   - git worktree に対応する:
     - `mount-root` は “main + 全 worktree を包含するディレクトリ” を自動推定できること（ただしガードあり）。
     - 初期作業ディレクトリは PWD（または指定）に一致すること。
@@ -234,8 +236,8 @@
   - Given: git 管理外のディレクトリで PWD が作業対象である
   - When: `sandbox`（=`sandbox shell`）を引数なしで実行する
   - Then:
-    - `mount-root=workdir=PWD` が採用される
-    - コンテナが起動し、初期作業ディレクトリが PWD 相当のパスになる
+    - `mount-root=workdir=呼び出し元PWD` が採用される
+    - コンテナが起動し、初期作業ディレクトリが “呼び出し元PWD” 相当のパスになる
   - 観測点:
     - Host 出力: `mount-root` / `workdir` / コンテナ名が表示される
     - Container: `pwd` が期待通り
@@ -336,6 +338,8 @@
   - Then:
     - ヘルプ（Usage/サブコマンド一覧/共通引数/例）が標準出力に表示される
     - 終了コード 0 で終了する
+    - `--mount-root` / `--workdir` に無効なパスが混ざっていても、パス検証を行わずにヘルプを表示できる（例: `sandbox help --workdir /nope` でも落ちない）
+    - ホスト側ファイルの生成/更新や、Docker/Compose の操作は行わない（副作用なし）
   - 観測点: Host 出力 / 終了コード
   - 補足:
     - `sandbox <subcommand> -h` / `--help` でサブコマンド固有のヘルプが表示される
@@ -347,6 +351,7 @@
     - 対象インスタンスの `container_name` が **標準出力に 1 行だけ** 出力される（末尾改行あり）
     - Docker の状態（存在/稼働/停止）は問わない（Docker を見に行かない）
     - 終了コード 0 で終了する
+    - `.env` や `.agent-home` の作成を含む、ホスト側ファイルの生成/更新は行わない（副作用なし）
   - 観測点: Host 出力（stdout）/ 終了コード
   - 補足:
     - `mount-root` 自動推定のガードに引っかかった場合などは、他サブコマンド同様にエラーで停止してよい（exit 0 ではない）
@@ -374,6 +379,7 @@
       - 終了コード 0 で終了する
     - `mount_root` / `workdir` はホスト絶対パス（realpath）になる
     - 起動/ビルド/接続は行わない（副作用なし）
+    - `.env` や `.agent-home` の作成を含む、ホスト側ファイルの生成/更新は行わない
   - 観測点:
     - Host 出力（stdout）
     - 終了コード（対象が存在しない場合も 0）

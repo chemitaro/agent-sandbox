@@ -46,6 +46,35 @@ rg -n "sandbox status|AC-020" .spec-dock/current/requirement.md .spec-dock/curre
 
 ---
 
+### 2026-01-22 15:26 - 2026-01-22 15:46
+
+#### 対象
+- Step: （未着手 / 設計更新）
+- AC/EC: AC-018, AC-019, AC-020
+
+#### 実施内容
+- レビューフィードバックを反映し、以下を仕様として明確化:
+  - `help/name/status` は副作用なし（`.env` / `.agent-home` の作成を含むホスト側ファイル生成/更新をしない）
+  - `workdir=PWD` の `PWD` は “呼び出し元PWD”（`CALLER_PWD`）である
+  - ヘルプはパス検証より先に処理し、無効なパス指定が混ざっていても exit 0 で表示できる
+  - `TZ=` が空文字の場合は未設定扱いとして検出注入する（空のままにしない）
+  - コンテナ存在確認を `docker ps -a` の出力パースではなく `docker inspect` ベースに寄せる
+
+#### 実行コマンド / 結果
+```bash
+rg -n "CALLER_PWD|help --workdir|docker inspect|TZ=\\)" .spec-dock/current/design.md .spec-dock/current/requirement.md
+```
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md` - help/name/status の副作用なし・ヘルプの早期処理・呼び出し元PWDの明記
+- `.spec-dock/current/design.md` - CALLER_PWD 固定、compose事前準備の適用範囲、TZ空文字ルール、存在確認の inspect 化、テスト観点を追記
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- まだ設計フェーズ。次はユーザー承認後に `plan.md` を作成して実装へ進む。
+
 ## 遭遇した問題と解決 (任意)
 - 該当なし
 
