@@ -5,13 +5,13 @@
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
 状態: "approved"
 作成者: "Codex CLI"
-最終更新: "2026-01-21"
+最終更新: "2026-01-22"
 ---
 
 # FEAT-005 動的マウント起動（任意ディレクトリをSandboxとして起動） — 要件定義（WHAT / WHY）
 
 ## 目的（ユーザーに見える成果 / To-Be） (必須)
-- このリポジトリ（`agent-sandbox`）をプロジェクトごとに clone / `sandbox.config` を書き換えずに、任意のディレクトリを作業対象としてコンテナを起動できる。
+- このリポジトリ（`agent-sandbox`）をプロジェクトごとに clone せずに、任意のディレクトリを作業対象としてコンテナを起動できる。
 - 引数指定なしの場合は、実行時のカレントディレクトリ（PWD）を初期作業ディレクトリとしつつ、git worktree を含む作業範囲を自動推定してマウントできる。
 - 異なる作業ディレクトリ（およびマウント親）を対象に、複数コンテナを同時に起動・共存できる。
 - 既存の Docker-on-Docker（sandbox コンテナ内からホスト Docker を操作する）運用が継続できる。
@@ -81,9 +81,10 @@
 - MUST（必ずやる）:
   - 新しい起動スクリプト（ホスト側）を追加し、任意ディレクトリから sandbox を起動できるようにする。
     - `/usr/local/bin/sandbox` に symlink を配置するインストール手段を提供する（本体は置かない）。
-    - Makefile からも同じ起動スクリプトを実行できる。
   - `mount-root`（マウント親）と `workdir`（初期作業ディレクトリ）を分離して扱えるようにする。
     - 両方指定された場合は指定通りに採用する。
+    - `--mount-root` のみ指定された場合は `workdir=mount-root` に補完する。
+    - `--workdir` のみ指定された場合は git を解析して `mount-root` を自動推定する（非gitなら `mount-root=workdir`）。
     - 何も指定しない場合は `workdir=PWD` とし、git を解析して `mount-root` を自動推定する。
     - git 管理外ディレクトリの場合は `mount-root=workdir=PWD` とする。
   - git worktree に対応する:
@@ -93,12 +94,10 @@
     - コンテナの同一性キーは `(abs_mount_root, abs_workdir)` とする（両方 realpath/絶対パス化）。
     - 同一性キーが異なれば別コンテナとして起動する（並行稼働できる）。
   - **動的マウント起動モード**のコンテナ内マウント先（mount point）は固定値とし、`/srv/mount` を採用する。
-    - 既存の `make start` モードは従来通り `PRODUCT_WORK_DIR=/srv/$PRODUCT_NAME` を維持する（互換性）。
   - コンテナ名は自動生成のみ（ユーザー指定は不要）:
     - prefix: `sandbox-`
     - 可読部: `basename(mount-root)` + `basename(workdir)`（同一の場合は重複しない）
     - 末尾: 衝突防止のハッシュ（12桁固定）
-  - 既存の `sandbox.config` / `make start` / `make shell` の運用は互換性を維持する（破壊的変更を避ける）。
   - Docker-on-Docker 運用を維持する:
     - sandbox コンテナ内からホスト Docker を操作できること（docker.sock マウント/権限調整の維持）
     - 既存の Docker-on-Docker を使うプロダクト（例: `/Users/iwasawayuuta/workspace/product/taikyohiyou_project`）で従来通り動くこと
@@ -106,6 +105,7 @@
   - 生成/保持ファイルを増やさない:
     - コンテナごとに `.env` や docker-compose yaml、Dockerfile を生成して保持しない。
     - 1つの `docker-compose.yml` を使い回し、インスタンス固有値は起動コマンド実行時に注入する。
+    - `.env` は secrets/common の静的ファイルとしてユーザーが管理し、ツールは自動生成/上書きしない。
 - MUST NOT（絶対にやらない／追加しない）:
   - コンテナ名の手動指定機能（`--name` 等）は追加しない。
   - “広すぎる” `mount-root` を自動推定した場合、無理に包含しない（エラーで拒否する）。
@@ -116,10 +116,10 @@
   - 複数マウント（追加パス）や ro/rw 指定などの高度なマウント機能。
   - Homebrew/npm などでの配布（インストール）まで含めた整備。
   - Devcontainer の追従（特に「動的マウント/複数コンテナ」モードに合わせた `.devcontainer/devcontainer.json` 自動更新や、複数インスタンス対応）。
+  - 旧 `sandbox.config` / `scripts/generate-env.sh` / `make start` / `make shell` フローの互換性維持（= 旧フローを残したまま同等に動くことの保証）。
 
 ## 非交渉制約（守るべき制約） (必須)
-- 既存の `sandbox.config` / `make start` 系の使い方は当面維持する（互換性）。
-- **動的マウント起動モード**のコンテナ内マウント先は固定: `/srv/mount`（既存 `make start` モードは従来通り `/srv/$PRODUCT_NAME`）。
+- **動的マウント起動モード**のコンテナ内マウント先は固定: `/srv/mount`。
 - `mount-root` 自動推定にガードを入れ、広すぎる場合はエラーで拒否する（安全優先）。
 - コンテナ名は ASCII で扱える文字（`sandbox-...`）で自動生成する。
 - コンテナ名の末尾ハッシュは 12桁固定とする。
@@ -190,14 +190,15 @@
   - Actor/Role: 開発者
   - Given: 自動推定すると `mount-root` が過度に広くなるケース（意図しない巨大マウントにつながる）
   - When: 引数なし起動を試みる
-  - Then: エラーで終了し、`--mount-root` などの明示指定を促す
+  - Then:
+    - エラーで終了し、`--mount-root` などの明示指定を促す
+    - 具体的には、以下のいずれかに該当する場合は “広すぎる” と判定して拒否する
+      - 禁止パス（完全一致）: `/`, `$HOME`, `/Users`, `/home`, `/Volumes`, `/mnt`, `/media`
+      - `git rev-parse --show-toplevel`（= repo root）から `mount-root` までの遡り階層数が **1 を超える**
+        - 例: `repo_root=/a/b/repo` のとき、`mount-root=/a/b`（遡り=1）は許容し、`mount-root=/a`（遡り=2）は拒否する
   - 観測点: Host 出力（エラーメッセージ、終了コード）
-- AC-006: 既存運用の互換性
-  - Actor/Role: 既存利用者
-  - Given: 既存通り `sandbox.config` を用意している
-  - When: `make start` / `make shell` を実行する
-  - Then: 従来と同等にコンテナが起動・接続できる
-  - 観測点: Host 出力 / Container `pwd`
+- AC-006: （削除）既存運用の互換性
+  - メモ: ユーザー合意により、旧 `sandbox.config` / `make start` フローの互換性は要求しない（OUT OF SCOPE）。
 - AC-007: 引数なし起動（git 管理外ディレクトリ）
   - Actor/Role: 開発者
   - Given: git 管理外のディレクトリで PWD が作業対象である
@@ -208,16 +209,14 @@
   - 観測点:
     - Host 出力: `mount-root` / `workdir` / コンテナ名が表示される
     - Container: `pwd` が期待通り
-- AC-008: インストール（symlink）と Make 経由実行
+- AC-008: インストール（symlink）
   - Actor/Role: 開発者
   - Given: sandbox リポジトリがローカルに存在する
   - When:
     - インストール手段を実行する
-    - あるいは Makefile から同等の起動ができる
   - Then:
     - `/usr/local/bin/sandbox` に起動スクリプトへの symlink が作成される
     - そのコマンドが任意ディレクトリから実行できる
-    - Makefile からも同じ起動スクリプトを実行できる
   - 観測点:
     - Host: `ls -l /usr/local/bin/sandbox`（symlinkであること）
     - Host: 任意ディレクトリでの起動が成功する
@@ -281,21 +280,12 @@
 - TERM-003: instance key = `(abs_mount_root, abs_workdir)`（realpath/絶対パス）で表すコンテナ同一性
 - TERM-004: slug = コンテナ名に含める可読部（`basename(mount-root)` と `basename(workdir)` の組）
 - TERM-005: `PRODUCT_WORK_DIR` = Docker-on-Docker 用の “コンテナ内” マウント基準パス（= `HOST_PRODUCT_PATH` に対応するコンテナ内の基準パス）
-  - legacy（`make start`）: `/srv/$PRODUCT_NAME`（`scripts/generate-env.sh:160`）
-  - dynamic（本機能）: `/srv/mount`
+  - 本機能: `/srv/mount`
 - TERM-006: `HOST_PRODUCT_PATH` = Docker-on-Docker 用の “ホスト側” マウント基準パス（= `PRODUCT_WORK_DIR` に対応するホスト絶対パス）
-  - legacy（`make start`）: `SOURCE_PATH`（`docker-compose.yml:31`, `scripts/generate-env.sh:149-154`）
-  - dynamic（本機能）: `abs_mount_root`
+  - 本機能: `abs_mount_root`
 
 ## 未確定事項（TBD / 要確認） (必須)
-- Q-003: “広すぎる” ガードの具体ロジック
-  - 質問: mount-root 自動推定が広すぎる場合の判定基準（例: git root から上に遡る階層数、禁止パス、閾値）
-  - 選択肢:
-    - A: 一定階層以上上がったら拒否
-    - B: 特定ディレクトリ（`$HOME` 等）を禁止
-    - C: A+Bの組み合わせ
-  - 推奨案（暫定）: C
-  - 影響範囲: AC-001 / AC-005 / 実装
+- 該当なし（Q-003 は 2026-01-22 に確定）
 
 ## 完了条件（Definition of Done） (必須)
 - すべてのAC/ECが満たされる
