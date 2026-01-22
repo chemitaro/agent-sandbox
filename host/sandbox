@@ -1,0 +1,802 @@
+#!/bin/bash
+set -euo pipefail
+
+CALLER_PWD="${CALLER_PWD:-$(pwd)}"
+MAX_UP_LEVEL=1
+FORBIDDEN_MOUNT_ROOTS=(
+    "/"
+    "$HOME"
+    "/Users"
+    "/home"
+    "/Volumes"
+    "/mnt"
+    "/media"
+)
+
+realpath_safe() {
+    local target="$1"
+    if command -v realpath >/dev/null 2>&1; then
+        realpath "$target"
+        return 0
+    fi
+    python3 - <<'PY' "$target"
+import os
+import sys
+print(os.path.realpath(sys.argv[1]))
+PY
+}
+
+SANDBOX_ROOT="$(realpath_safe "$(dirname "${BASH_SOURCE[0]}")/..")"
+
+resolve_path() {
+    local input="$1"
+    if [[ "$input" == /* ]]; then
+        realpath_safe "$input"
+    else
+        realpath_safe "$CALLER_PWD/$input"
+    fi
+}
+
+ensure_env_file() {
+    local env_file="$SANDBOX_ROOT/.env"
+    if [[ ! -f "$env_file" ]]; then
+        : > "$env_file"
+    fi
+}
+
+ensure_agent_home_dirs() {
+    local base="$SANDBOX_ROOT/.agent-home"
+    mkdir -p \
+        "$base/.claude" \
+        "$base/.codex" \
+        "$base/.gemini" \
+        "$base/.opencode" \
+        "$base/.opencode/agent" \
+        "$base/.opencode/command" \
+        "$base/.opencode/plugin" \
+        "$base/.opencode-data" \
+        "$base/.cache/uv" \
+        "$base/.cache/pre-commit" \
+        "$base/.cache/opencode" \
+        "$base/commandhistory"
+}
+
+detect_timezone() {
+    if [[ -n "${TZ:-}" ]]; then
+        echo "$TZ"
+    elif [[ -L /etc/localtime ]]; then
+        readlink /etc/localtime | sed 's|.*/zoneinfo/||'
+    elif [[ -f /etc/timezone ]]; then
+        cat /etc/timezone
+    elif command -v timedatectl >/dev/null 2>&1; then
+        timedatectl | awk -F'[: ]+' '/Time zone/ {print $3}'
+    else
+        echo "Asia/Tokyo"
+    fi
+}
+
+env_file_has_tz_nonempty() {
+    local env_file="$SANDBOX_ROOT/.env"
+    if [[ ! -f "$env_file" ]]; then
+        return 1
+    fi
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        if [[ "$line" =~ ^[[:space:]]*TZ= ]]; then
+            local value="${line#*=}"
+            value="${value%$'\\r'}"
+            value="$(echo "$value" | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')"
+            value="${value%\"}"
+            value="${value#\"}"
+            value="${value%\'}"
+            value="${value#\'}"
+            if [[ -n "$value" ]]; then
+                return 0
+            fi
+        fi
+    done < "$env_file"
+    return 1
+}
+
+resolve_tz_injection() {
+    if [[ -n "${TZ:-}" ]]; then
+        return 1
+    fi
+    if env_file_has_tz_nonempty; then
+        return 1
+    fi
+    return 0
+}
+
+select_compose_cmd() {
+    if docker compose version >/dev/null 2>&1; then
+        COMPOSE_CMD=("docker" "compose")
+        return 0
+    fi
+
+    if command -v docker-compose >/dev/null 2>&1; then
+        local ver
+        ver="$(docker-compose version 2>/dev/null || true)"
+        if echo "$ver" | grep -qi "version v2"; then
+            COMPOSE_CMD=("docker-compose")
+            return 0
+        fi
+    fi
+
+    echo "docker compose v2 is required" >&2
+    return 1
+}
+
+prepare_compose_env() {
+    local container_name="$1"
+    local abs_mount_root="$2"
+
+    local tz_env=()
+    if resolve_tz_injection; then
+        tz_env=("TZ=$(detect_timezone)")
+    fi
+
+    local host_username
+    host_username="$(whoami)"
+
+    COMPOSE_ENV=(
+        "CONTAINER_NAME=$container_name"
+        "COMPOSE_PROJECT_NAME=$container_name"
+        "SOURCE_PATH=$abs_mount_root"
+        "PRODUCT_WORK_DIR=/srv/mount"
+        "HOST_SANDBOX_PATH=$SANDBOX_ROOT"
+        "HOST_USERNAME=$host_username"
+        "PRODUCT_NAME=mount"
+    )
+
+    if [[ ${#tz_env[@]} -gt 0 ]]; then
+        COMPOSE_ENV+=("${tz_env[@]}")
+    fi
+}
+
+run_compose() {
+    ( cd "$SANDBOX_ROOT" && env "${COMPOSE_ENV[@]}" "${COMPOSE_CMD[@]}" "$@" )
+}
+
+run_compose_up() {
+    local container_name="$1"
+    local abs_mount_root="$2"
+
+    prepare_compose_env "$container_name" "$abs_mount_root"
+    run_compose up -d --build
+}
+
+run_compose_exec() {
+    local container_workdir="$1"
+    run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh
+}
+
+run_compose_build() {
+    local container_name="$1"
+    local abs_mount_root="$2"
+
+    prepare_compose_env "$container_name" "$abs_mount_root"
+    run_compose build
+}
+
+parse_common_args() {
+    MOUNT_ROOT_ARG=""
+    WORKDIR_ARG=""
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --mount-root)
+                if [[ $# -lt 2 ]]; then
+                    echo "Missing value for --mount-root" >&2
+                    exit 1
+                fi
+                MOUNT_ROOT_ARG="$2"
+                shift 2
+                ;;
+            --workdir)
+                if [[ $# -lt 2 ]]; then
+                    echo "Missing value for --workdir" >&2
+                    exit 1
+                fi
+                WORKDIR_ARG="$2"
+                shift 2
+                ;;
+            *)
+                shift
+                ;;
+        esac
+    done
+}
+
+determine_paths() {
+    if [[ -n "$MOUNT_ROOT_ARG" && -n "$WORKDIR_ARG" ]]; then
+        ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"
+        ABS_WORKDIR="$(resolve_path "$WORKDIR_ARG")"
+        if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
+            echo "workdir must be within mount-root" >&2
+            return 1
+        fi
+        return 0
+    fi
+
+    if [[ -n "$MOUNT_ROOT_ARG" ]]; then
+        ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"
+        ABS_WORKDIR="$ABS_MOUNT_ROOT"
+        if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
+            echo "workdir must be within mount-root" >&2
+            return 1
+        fi
+        return 0
+    fi
+
+    if [[ -n "$WORKDIR_ARG" ]]; then
+        ABS_WORKDIR="$(resolve_path "$WORKDIR_ARG")"
+        if auto_detect_mount_root "$ABS_WORKDIR"; then
+            ABS_MOUNT_ROOT="$AUTO_MOUNT_ROOT"
+        else
+            local rc=$?
+            if [[ $rc -eq 10 ]]; then
+                ABS_MOUNT_ROOT="$ABS_WORKDIR"
+                if ! guard_mount_root "$ABS_MOUNT_ROOT" ""; then
+                    return 1
+                fi
+            else
+                return 1
+            fi
+        fi
+        if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
+            echo "workdir must be within mount-root" >&2
+            return 1
+        fi
+        return 0
+    fi
+
+    ABS_WORKDIR="$(resolve_path "$CALLER_PWD")"
+    if auto_detect_mount_root "$ABS_WORKDIR"; then
+        ABS_MOUNT_ROOT="$AUTO_MOUNT_ROOT"
+    else
+        local rc=$?
+        if [[ $rc -eq 10 ]]; then
+            ABS_MOUNT_ROOT="$ABS_WORKDIR"
+            if ! guard_mount_root "$ABS_MOUNT_ROOT" ""; then
+                return 1
+            fi
+        else
+            return 1
+        fi
+    fi
+    if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
+        echo "workdir must be within mount-root" >&2
+        return 1
+    fi
+    return 0
+}
+
+is_subpath() {
+    local root="$1"
+    local path="$2"
+    root="${root%/}"
+    path="${path%/}"
+
+    if [[ "$path" == "$root" ]]; then
+        return 0
+    fi
+    if [[ "$path" == "$root/"* ]]; then
+        return 0
+    fi
+    return 1
+}
+
+compute_container_workdir() {
+    local abs_mount_root="$1"
+    local abs_workdir="$2"
+
+    if ! is_subpath "$abs_mount_root" "$abs_workdir"; then
+        echo "workdir must be within mount-root" >&2
+        return 1
+    fi
+
+    if [[ "$abs_mount_root" == "$abs_workdir" ]]; then
+        echo "/srv/mount"
+        return 0
+    fi
+
+    local rel="${abs_workdir#$abs_mount_root/}"
+    echo "/srv/mount/$rel"
+}
+
+find_git_marker() {
+    local dir="$1"
+    dir="$(resolve_path "$dir")"
+    while true; do
+        if [[ -e "$dir/.git" ]]; then
+            return 0
+        fi
+        if [[ "$dir" == "/" ]]; then
+            return 1
+        fi
+        dir="$(dirname "$dir")"
+    done
+}
+
+compute_lca() {
+    local first="$1"
+    shift
+
+    local lca
+    lca="$(resolve_path "$first")"
+
+    for path in "$@"; do
+        local abs_path
+        abs_path="$(resolve_path "$path")"
+        while ! is_subpath "$lca" "$abs_path"; do
+            if [[ "$lca" == "/" ]]; then
+                break
+            fi
+            lca="$(dirname "$lca")"
+        done
+    done
+
+    echo "$lca"
+}
+
+guard_mount_root() {
+    local mount_root="$1"
+    local repo_root="$2"
+
+    for forbidden in "${FORBIDDEN_MOUNT_ROOTS[@]}"; do
+        if [[ "$mount_root" == "$forbidden" ]]; then
+            echo "mount-root is too broad: $mount_root" >&2
+            return 1
+        fi
+    done
+
+    if [[ -n "$repo_root" ]]; then
+        local up_level=0
+        local cursor="$repo_root"
+        while [[ "$cursor" != "$mount_root" && "$cursor" != "/" ]]; do
+            cursor="$(dirname "$cursor")"
+            up_level=$((up_level + 1))
+        done
+        if [[ "$cursor" != "$mount_root" ]]; then
+            echo "mount-root is not an ancestor of repo-root" >&2
+            return 1
+        fi
+        if (( up_level > MAX_UP_LEVEL )); then
+            echo "mount-root is too broad (up-level=$up_level)" >&2
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
+auto_detect_mount_root() {
+    local abs_workdir="$1"
+
+    if ! find_git_marker "$abs_workdir"; then
+        return 10
+    fi
+
+    local repo_root
+    if ! repo_root="$(git -C "$abs_workdir" rev-parse --show-toplevel 2>/dev/null)"; then
+        echo "failed to detect git root (rev-parse)" >&2
+        return 1
+    fi
+    repo_root="$(resolve_path "$repo_root")"
+
+    local worktree_paths=()
+    while IFS= read -r line; do
+        if [[ "$line" == worktree\ * ]]; then
+            worktree_paths+=("${line#worktree }")
+        fi
+    done < <(git -C "$repo_root" worktree list --porcelain 2>/dev/null)
+
+    if [[ ${#worktree_paths[@]} -eq 0 ]]; then
+        worktree_paths+=("$repo_root")
+    fi
+
+    local lca
+    lca="$(compute_lca "${worktree_paths[@]}")"
+    if [[ -z "$lca" ]]; then
+        echo "failed to compute mount-root" >&2
+        return 1
+    fi
+
+    if ! guard_mount_root "$lca" "$repo_root"; then
+        return 1
+    fi
+
+    AUTO_MOUNT_ROOT="$lca"
+    AUTO_REPO_ROOT="$repo_root"
+    return 0
+}
+
+normalize_slug() {
+    local raw="$1"
+    local slug
+    slug="$(echo "$raw" | sed -E 's/[^a-zA-Z0-9._-]+/-/g; s/^-+//; s/-+$//')"
+
+    if [[ -z "$slug" ]]; then
+        slug="dir"
+    fi
+
+    local max_slug_len=42
+    if (( ${#slug} > max_slug_len )); then
+        slug="${slug:0:max_slug_len}"
+    fi
+
+    echo "$slug"
+}
+
+compute_hash12() {
+    local key="$1"
+    local digest=""
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        digest="$(printf '%s' "$key" | sha256sum | awk '{print $1}')" || true
+    fi
+
+    if [[ -z "$digest" ]] && command -v shasum >/dev/null 2>&1; then
+        digest="$(printf '%s' "$key" | shasum -a 256 | awk '{print $1}')" || true
+    fi
+
+    if [[ -z "$digest" ]]; then
+        echo "Failed to compute sha256 hash" >&2
+        exit 1
+    fi
+
+    echo "${digest:0:12}"
+}
+
+compute_container_name() {
+    local abs_mount_root="$1"
+    local abs_workdir="$2"
+
+    local base_mount
+    local base_workdir
+    base_mount="$(basename "$abs_mount_root")"
+    base_workdir="$(basename "$abs_workdir")"
+
+    local slug_raw
+    if [[ "$base_mount" == "$base_workdir" ]]; then
+        slug_raw="$base_workdir"
+    else
+        slug_raw="${base_mount}-${base_workdir}"
+    fi
+
+    local slug
+    slug="$(normalize_slug "$slug_raw")"
+
+    local key
+    key="${abs_mount_root}"$'\n'"${abs_workdir}"
+    local hash12
+    hash12="$(compute_hash12 "$key")"
+
+    echo "sandbox-${slug}-${hash12}"
+}
+
+ensure_docker_available() {
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "docker command not found" >&2
+        return 1
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        echo "docker daemon is not reachable" >&2
+        return 1
+    fi
+    return 0
+}
+
+container_exists() {
+    local container_name="$1"
+    if docker inspect "$container_name" >/dev/null 2>&1; then
+        return 0
+    fi
+    return 1
+}
+
+run_compose_stop() {
+    local container_name="$1"
+    local abs_mount_root="$2"
+
+    prepare_compose_env "$container_name" "$abs_mount_root"
+    run_compose stop
+}
+
+run_compose_down() {
+    local container_name="$1"
+    local abs_mount_root="$2"
+
+    prepare_compose_env "$container_name" "$abs_mount_root"
+    run_compose down
+}
+
+get_container_status() {
+    local container_name="$1"
+    local status
+    local container_id
+
+    status="$(docker inspect --format '{{.State.Status}}' "$container_name" 2>/dev/null)" || return 1
+    container_id="$(docker inspect --format '{{.Id}}' "$container_name" 2>/dev/null)" || return 1
+
+    CONTAINER_STATUS="$status"
+    CONTAINER_ID_FULL="$container_id"
+    return 0
+}
+
+print_help() {
+    cat <<'USAGE'
+Usage: sandbox <command> [options]
+
+Commands:
+  shell    Start (if needed) and open a shell (default)
+  up       Build and start the container
+  build    Build images only
+  stop     Stop the container
+  down     Stop and remove the container
+  status   Show container status
+  name     Print computed container name
+  help     Show this help
+
+Options:
+  --mount-root <path>   Host mount root
+  --workdir <path>      Host working directory
+  -h, --help            Show help
+USAGE
+}
+
+print_help_shell() {
+    cat <<'USAGE'
+Usage: sandbox shell [options]
+
+Start (if needed) and open a shell inside the container.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+print_help_up() {
+    cat <<'USAGE'
+Usage: sandbox up [options]
+
+Build and start the container.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+print_help_build() {
+    cat <<'USAGE'
+Usage: sandbox build [options]
+
+Build images only.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+print_help_stop() {
+    cat <<'USAGE'
+Usage: sandbox stop [options]
+
+Stop the container.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+print_help_down() {
+    cat <<'USAGE'
+Usage: sandbox down [options]
+
+Stop and remove the container.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+print_help_status() {
+    cat <<'USAGE'
+Usage: sandbox status [options]
+
+Show container status.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+print_help_name() {
+    cat <<'USAGE'
+Usage: sandbox name [options]
+
+Print computed container name.
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+USAGE
+}
+
+main() {
+    CALLER_PWD="${CALLER_PWD:-$(pwd)}"
+
+    local has_help_flag=false
+    for arg in "$@"; do
+        if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+            has_help_flag=true
+            break
+        fi
+    done
+
+    local subcommand=""
+    for arg in "$@"; do
+        case "$arg" in
+            shell|up|build|stop|down|status|name|help)
+                subcommand="$arg"
+                break
+                ;;
+        esac
+    done
+
+    if [[ "$has_help_flag" == true || "$subcommand" == "help" ]]; then
+        case "$subcommand" in
+            shell)  print_help_shell ;;
+            up)     print_help_up ;;
+            build)  print_help_build ;;
+            stop)   print_help_stop ;;
+            down)   print_help_down ;;
+            status) print_help_status ;;
+            name)   print_help_name ;;
+            *)      print_help ;;
+        esac
+        exit 0
+    fi
+
+    if [[ "$subcommand" == "name" ]]; then
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"
+        exit 0
+    fi
+
+    if [[ "$subcommand" == "up" ]]; then
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        ensure_env_file
+        ensure_agent_home_dirs
+        if ! select_compose_cmd; then
+            exit 1
+        fi
+        run_compose_up "$container_name" "$ABS_MOUNT_ROOT"
+        exit $?
+    fi
+
+    if [[ -z "$subcommand" ]]; then
+        subcommand="shell"
+    fi
+
+    if [[ "$subcommand" == "shell" ]]; then
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local container_workdir
+        container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        ensure_env_file
+        ensure_agent_home_dirs
+        if ! select_compose_cmd; then
+            exit 1
+        fi
+        run_compose_up "$container_name" "$ABS_MOUNT_ROOT"
+        run_compose_exec "$container_workdir"
+        exit $?
+    fi
+
+    if [[ "$subcommand" == "build" ]]; then
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        ensure_env_file
+        ensure_agent_home_dirs
+        if ! select_compose_cmd; then
+            exit 1
+        fi
+        run_compose_build "$container_name" "$ABS_MOUNT_ROOT"
+        exit $?
+    fi
+
+    if [[ "$subcommand" == "stop" || "$subcommand" == "down" ]]; then
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        if ! container_exists "$container_name"; then
+            echo "No matching sandbox container: $container_name"
+            exit 0
+        fi
+        ensure_env_file
+        ensure_agent_home_dirs
+        if ! select_compose_cmd; then
+            exit 1
+        fi
+        if [[ "$subcommand" == "stop" ]]; then
+            run_compose_stop "$container_name" "$ABS_MOUNT_ROOT"
+        else
+            run_compose_down "$container_name" "$ABS_MOUNT_ROOT"
+        fi
+        exit $?
+    fi
+
+    if [[ "$subcommand" == "status" ]]; then
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        if ! get_container_status "$container_name"; then
+            echo "container_name: $container_name"
+            echo "status: not-found"
+            echo "container_id: -"
+            echo "mount_root: $ABS_MOUNT_ROOT"
+            echo "workdir: $ABS_WORKDIR"
+            echo "message: No matching sandbox container"
+            exit 0
+        fi
+        local short_id="${CONTAINER_ID_FULL:0:12}"
+        echo "container_name: $container_name"
+        echo "status: $CONTAINER_STATUS"
+        echo "container_id: $short_id"
+        echo "mount_root: $ABS_MOUNT_ROOT"
+        echo "workdir: $ABS_WORKDIR"
+        exit 0
+    fi
+
+    echo "Not implemented: $subcommand" >&2
+    exit 1
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

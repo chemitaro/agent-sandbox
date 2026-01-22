@@ -109,6 +109,211 @@ sed -n '1,120p' .spec-dock/current/plan.md
 #### メモ
 - 次は plan.md に従って実装フェーズへ進む（ユーザー承認後）。
 
+### 2026-01-22 17:20 - 2026-01-22 17:40
+
+#### 対象
+- Step: S01
+- AC/EC: AC-018
+
+#### 実施内容
+- `sandbox` の help 表示を最優先で処理するテストを追加。
+- ホスト側 CLI エントリ `host/sandbox` を新規作成し、`help/-h/--help` の表示を実装。
+- help 実行時に docker/git や `.env`/`.agent-home` が触られないことをテストで担保。
+
+#### 実行コマンド / 結果
+```bash
+mkdir -p tests
+cat > tests/_helpers.sh <<'EOF'
+# helpers for bash tests
+EOF
+cat > tests/sandbox_cli.test.sh <<'EOF'
+# help tests
+EOF
+chmod +x tests/_helpers.sh tests/sandbox_cli.test.sh
+cat > host/sandbox <<'EOF'
+# host CLI entrypoint
+EOF
+chmod +x host/sandbox
+bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `tests/_helpers.sh` - テスト共通ヘルパ（stub/アサート/実行）を追加
+- `tests/sandbox_cli.test.sh` - S01（help最優先）のテストを追加
+- `host/sandbox` - CLI エントリを追加（help 先行処理）
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S01 のテストが通過。次は S02 に着手。
+
+---
+
+### 2026-01-22 17:40 - 2026-01-22 18:10
+
+#### 対象
+- Step: S02
+- AC/EC: AC-019, AC-004, EC-004
+
+#### 実施内容
+- `sandbox name` のテスト（1行stdout/slug/hash/長さ/sha256sum→shasum fallback）を追加。
+- `host/sandbox` にコンテナ名合成ロジックを実装（slug正規化・hash12）。
+- テストヘルパの `run_cmd` を修正し、空白パスを正しく扱えるように修正。
+
+#### 実行コマンド / 結果
+```bash
+cat > tests/sandbox_name.test.sh <<'EOF'
+# sandbox name tests
+EOF
+chmod +x tests/sandbox_name.test.sh
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_name.test.sh
+```
+
+#### 変更したファイル
+- `tests/_helpers.sh` - `run_cmd` の引数クオート修正
+- `tests/sandbox_cli.test.sh` - `sandbox name` の stdout 1行テストを追加
+- `tests/sandbox_name.test.sh` - コンテナ名合成のユニットテストを追加
+- `host/sandbox` - `sandbox name` を実装（slug/hash12/パス解決）
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S02 のテストが通過。次は S03 に着手。
+
+---
+
+### 2026-01-22 18:10 - 2026-01-22 18:45
+
+#### 対象
+- Step: S03
+- AC/EC: AC-002, AC-007, AC-012, EC-001, EC-002
+
+#### 実施内容
+- パス決定/包含/コンテナ内変換のテストを追加（`tests/sandbox_paths.test.sh`）。
+- `host/sandbox` を source して関数テストできるように `main()` ガードを導入。
+- `determine_paths` / `compute_container_workdir` / `is_subpath` を実装し、境界判定を明確化。
+
+#### 実行コマンド / 結果
+```bash
+cat > tests/sandbox_paths.test.sh <<'EOF'
+# path resolution tests
+EOF
+chmod +x tests/sandbox_paths.test.sh
+bash tests/sandbox_paths.test.sh
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_name.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_paths.test.sh` - パス決定/包含/変換のユニットテストを追加
+- `host/sandbox` - source 対応とパス決定ロジックを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S03 のテストが通過。次は S04 に着手。
+
+---
+
+### 2026-01-22 18:45 - 2026-01-22 19:20
+
+#### 対象
+- Step: S04
+- AC/EC: AC-001, AC-005, AC-013, EC-003
+
+#### 実施内容
+- git worktree の自動推定と “広すぎる” ガードのテストを追加（`tests/sandbox_git_detect.test.sh`）。
+- `host/sandbox` に git worktree 解析（LCA）とガード（禁止パス + MAX_UP_LEVEL）を実装。
+- `rev-parse` 失敗時のエラー（EC-003）と非gitフォールバックを明確化。
+
+#### 実行コマンド / 結果
+```bash
+cat > tests/sandbox_git_detect.test.sh <<'EOF'
+# git auto-detect tests
+EOF
+chmod +x tests/sandbox_git_detect.test.sh
+bash tests/sandbox_git_detect.test.sh
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_name.test.sh
+bash tests/sandbox_paths.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_git_detect.test.sh` - worktree/LCA/ガードのテストを追加
+- `host/sandbox` - git 検出/ワークツリー解析/ガード/非gitフォールバックを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S04 のテストが通過。次は S05 に着手。
+
+---
+
+### 2026-01-22 19:20 - 2026-01-22 19:50
+
+#### 対象
+- Step: S05
+- AC/EC: EC-005
+
+#### 実施内容
+- Docker/Compose 不在・デーモン疎通不可のエラーをテストで担保。
+- `host/sandbox` に Docker 依存コマンド用の事前チェックを追加（`docker info`）。
+- help/name が Docker 不在でも動作することをテストで確認。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_name.test.sh
+bash tests/sandbox_paths.test.sh
+bash tests/sandbox_git_detect.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - Docker 不在/疎通不可のテストを追加
+- `host/sandbox` - Docker 事前チェックを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S05 のテストが通過。次は S06 に着手。
+
+---
+
+### 2026-01-22 19:50 - 2026-01-22 20:40
+
+#### 対象
+- Step: S06
+- AC/EC: AC-014, AC-011, AC-003
+
+#### 実施内容
+- `sandbox up` のテスト（compose 実行・env注入・.env/.agent-home作成・compose選択・TZ注入）を追加。
+- `host/sandbox` に `up` 実装（compose 選択、環境注入、TZ ルール、.env/.agent-home 作成）。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_name.test.sh
+bash tests/sandbox_paths.test.sh
+bash tests/sandbox_git_detect.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - `sandbox up` のテストを追加（compose/env/.env/.agent-home/TZ/compose検出）
+- `tests/_helpers.sh` - PATH 変更時の hash リセットを追加
+- `host/sandbox` - `up` 実装（compose 起動・env注入・TZ処理）
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S06 のテストが通過。次は S07 に着手。
+
 ## 遭遇した問題と解決 (任意)
 - 該当なし
 
@@ -120,3 +325,195 @@ sed -n '1,120p' .spec-dock/current/plan.md
 
 ## 省略/例外メモ (必須)
 - 該当なし
+
+---
+
+### 2026-01-22 20:40 - 2026-01-22 21:05
+
+#### 対象
+- Step: S07
+- AC/EC: AC-001, AC-002, AC-007, AC-012, AC-013
+
+#### 実施内容
+- `sandbox shell` のテスト（exec -w と DoD env 注入）を追加。
+- `host/sandbox` に shell 実装（up 後に exec、env 注入の共通化）。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - shell の exec/DoD env テストを追加
+- `host/sandbox` - compose 実行の共通化と `shell` 実装
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S07 のテストが通過。次は S08 に着手。
+
+---
+
+### 2026-01-22 21:05 - 2026-01-22 21:30
+
+#### 対象
+- Step: S08
+- AC/EC: AC-017
+
+#### 実施内容
+- `sandbox build` のテスト（buildのみ・.env/.agent-home 作成）を追加。
+- `host/sandbox` に build 実装を追加。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - build_only のテストを追加
+- `host/sandbox` - `build` 実装を追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S08 のテストが通過。次は S09 に着手。
+
+---
+
+### 2026-01-22 21:30 - 2026-01-22 22:05
+
+#### 対象
+- Step: S09
+- AC/EC: AC-015, AC-016
+
+#### 実施内容
+- `sandbox stop/down` のテスト（no-op と compose 実行）を追加。
+- `host/sandbox` に stop/down 実装（inspect 判定、no-op、compose 実行）。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - stop/down のテストを追加
+- `host/sandbox` - stop/down 実装を追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S09 のテストが通過。次は S10 に着手。
+
+---
+
+### 2026-01-22 22:05 - 2026-01-22 22:45
+
+#### 対象
+- Step: S10
+- AC/EC: AC-020
+
+#### 実施内容
+- `sandbox status` のテスト（key/value出力、not-found、Dockerエラー、無副作用）を追加。
+- `host/sandbox` に status 実装（inspect 取得、key/value 出力）。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - status のテストを追加
+- `host/sandbox` - status 実装を追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S10 のテストが通過。次は S11 に着手。
+
+---
+
+### 2026-01-22 22:45 - 2026-01-22 23:00
+
+#### 対象
+- Step: S11
+- AC/EC: AC-008
+
+#### 実施内容
+- `scripts/install-sandbox.sh` を追加（/usr/local/bin/sandbox への symlink 作成）。
+
+#### 実行コマンド / 結果
+```bash
+# 手動検証は未実施（権限が絡むため）。
+```
+
+#### 変更したファイル
+- `scripts/install-sandbox.sh` - symlink インストーラを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S11 の実装を追加。次は S12 に着手。
+
+---
+
+### 2026-01-22 23:00 - 2026-01-22 23:45
+
+#### 対象
+- Step: S12
+
+#### 実施内容
+- README/CLAUDE/Makefile を新しい `sandbox` CLI 前提に更新。
+- 旧フロー依存スクリプトを整理（`scripts/generate-env.sh` / `scripts/migrate-config.sh` を削除）。
+- Slack 通知の案内を `.env` 前提に更新。
+
+#### 実行コマンド / 結果
+```bash
+# ドキュメント更新のみ
+```
+
+#### 変更したファイル
+- `README.md` - 新しい CLI フローに更新
+- `CLAUDE.md` - 動的マウント前提のガイドに刷新
+- `Makefile` - 旧フロー削除、tmux/installer中心に整理
+- `scripts/slack-notify.js` - .env 前提の文言へ更新
+- `scripts/install-sandbox.sh` - 既存（S11で追加）
+- `scripts/generate-env.sh` - 削除
+- `scripts/migrate-config.sh` - 削除
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- S12 の更新完了。次は S13（DoD 実動）を確認。
+
+---
+
+### 2026-01-22 23:45 - 2026-01-22 23:55
+
+#### 対象
+- Step: S13（手動 DoD 実動）
+
+#### 実施内容
+- 実行環境で Docker の疎通を確認。
+- 手動検証は Docker が利用可能な環境で実施する必要があるため保留。
+
+#### 実行コマンド / 結果
+```bash
+docker info >/dev/null 2>&1; echo $?
+# => 1 (Docker デーモンに疎通できない)
+```
+
+#### 変更したファイル
+- なし
+
+#### コミット
+- （未実施 / 禁止）
+
+#### メモ
+- Docker が利用できる環境で `sandbox shell` + DoD 検証スクリプトを実行してください。
+- 参考対象: /Users/iwasawayuuta/workspace/product/taikyohiyou_project
