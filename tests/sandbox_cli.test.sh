@@ -511,6 +511,23 @@ shell_injects_dod_env_vars() {
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "PRODUCT_NAME=mount"
 }
 
+default_shell_ignores_option_value() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/up"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    run_cmd "$tmp_dir/host/sandbox" --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/up agent-sandbox /bin/zsh"
+}
+
 build_only() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
@@ -705,6 +722,7 @@ run_test "compose_v1_is_rejected" compose_v1_is_rejected
 run_test "tz_injection_rules" tz_injection_rules
 run_test "shell_exec_w" shell_exec_w
 run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
+run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
 run_test "build_only" build_only
 run_test "stop_down_idempotent" stop_down_idempotent
 run_test "status_output_keys" status_output_keys

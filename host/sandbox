@@ -15,9 +15,15 @@ FORBIDDEN_MOUNT_ROOTS=(
 
 realpath_safe() {
     local target="$1"
+    if [[ ! -e "$target" && ! -L "$target" ]]; then
+        return 1
+    fi
     if command -v realpath >/dev/null 2>&1; then
-        realpath "$target"
-        return 0
+        local resolved
+        if resolved="$(realpath "$target" 2>/dev/null)"; then
+            echo "$resolved"
+            return 0
+        fi
     fi
     python3 - <<'PY' "$target"
 import os
@@ -26,15 +32,31 @@ print(os.path.realpath(sys.argv[1]))
 PY
 }
 
-SANDBOX_ROOT="$(realpath_safe "$(dirname "${BASH_SOURCE[0]}")/..")"
+SCRIPT_PATH="$(realpath_safe "${BASH_SOURCE[0]}")"
+SANDBOX_ROOT="$(realpath_safe "$(dirname "$SCRIPT_PATH")/..")"
 
 resolve_path() {
     local input="$1"
+    local target
     if [[ "$input" == /* ]]; then
-        realpath_safe "$input"
+        target="$input"
     else
-        realpath_safe "$CALLER_PWD/$input"
+        target="$CALLER_PWD/$input"
     fi
+    if ! realpath_safe "$target"; then
+        echo "path does not exist: $target" >&2
+        return 1
+    fi
+}
+
+ensure_directory() {
+    local path="$1"
+    local label="$2"
+    if [[ ! -d "$path" ]]; then
+        echo "$label does not exist: $path" >&2
+        return 1
+    fi
+    return 0
 }
 
 ensure_env_file() {
@@ -64,15 +86,41 @@ ensure_agent_home_dirs() {
 detect_timezone() {
     if [[ -n "${TZ:-}" ]]; then
         echo "$TZ"
-    elif [[ -L /etc/localtime ]]; then
-        readlink /etc/localtime | sed 's|.*/zoneinfo/||'
-    elif [[ -f /etc/timezone ]]; then
-        cat /etc/timezone
-    elif command -v timedatectl >/dev/null 2>&1; then
-        timedatectl | awk -F'[: ]+' '/Time zone/ {print $3}'
-    else
-        echo "Asia/Tokyo"
+        return 0
     fi
+    if [[ -L /etc/localtime ]]; then
+        local target
+        target="$(readlink /etc/localtime)"
+        if [[ "$target" == *"/zoneinfo/"* ]]; then
+            echo "${target##*/zoneinfo/}"
+            return 0
+        fi
+    fi
+    if [[ -f /etc/timezone ]]; then
+        local tz
+        tz="$(cat /etc/timezone)"
+        if [[ -n "$tz" ]]; then
+            echo "$tz"
+            return 0
+        fi
+    fi
+    if command -v systemsetup >/dev/null 2>&1; then
+        local tz
+        tz="$(systemsetup -gettimezone 2>/dev/null | awk -F': ' '{print $2}')"
+        if [[ -n "$tz" ]]; then
+            echo "$tz"
+            return 0
+        fi
+    fi
+    if command -v timedatectl >/dev/null 2>&1; then
+        local tz
+        tz="$(timedatectl | awk -F'[: ]+' '/Time zone/ {print $3}')"
+        if [[ -n "$tz" ]]; then
+            echo "$tz"
+            return 0
+        fi
+    fi
+    echo "Asia/Tokyo"
 }
 
 env_file_has_tz_nonempty() {
@@ -210,8 +258,18 @@ parse_common_args() {
 
 determine_paths() {
     if [[ -n "$MOUNT_ROOT_ARG" && -n "$WORKDIR_ARG" ]]; then
-        ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"
-        ABS_WORKDIR="$(resolve_path "$WORKDIR_ARG")"
+        if ! ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"; then
+            return 1
+        fi
+        if ! ABS_WORKDIR="$(resolve_path "$WORKDIR_ARG")"; then
+            return 1
+        fi
+        if ! ensure_directory "$ABS_MOUNT_ROOT" "mount-root"; then
+            return 1
+        fi
+        if ! ensure_directory "$ABS_WORKDIR" "workdir"; then
+            return 1
+        fi
         if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
             echo "workdir must be within mount-root" >&2
             return 1
@@ -220,7 +278,12 @@ determine_paths() {
     fi
 
     if [[ -n "$MOUNT_ROOT_ARG" ]]; then
-        ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"
+        if ! ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"; then
+            return 1
+        fi
+        if ! ensure_directory "$ABS_MOUNT_ROOT" "mount-root"; then
+            return 1
+        fi
         ABS_WORKDIR="$ABS_MOUNT_ROOT"
         if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
             echo "workdir must be within mount-root" >&2
@@ -230,7 +293,12 @@ determine_paths() {
     fi
 
     if [[ -n "$WORKDIR_ARG" ]]; then
-        ABS_WORKDIR="$(resolve_path "$WORKDIR_ARG")"
+        if ! ABS_WORKDIR="$(resolve_path "$WORKDIR_ARG")"; then
+            return 1
+        fi
+        if ! ensure_directory "$ABS_WORKDIR" "workdir"; then
+            return 1
+        fi
         if auto_detect_mount_root "$ABS_WORKDIR"; then
             ABS_MOUNT_ROOT="$AUTO_MOUNT_ROOT"
         else
@@ -244,6 +312,9 @@ determine_paths() {
                 return 1
             fi
         fi
+        if ! ensure_directory "$ABS_MOUNT_ROOT" "mount-root"; then
+            return 1
+        fi
         if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
             echo "workdir must be within mount-root" >&2
             return 1
@@ -251,7 +322,12 @@ determine_paths() {
         return 0
     fi
 
-    ABS_WORKDIR="$(resolve_path "$CALLER_PWD")"
+    if ! ABS_WORKDIR="$(resolve_path "$CALLER_PWD")"; then
+        return 1
+    fi
+    if ! ensure_directory "$ABS_WORKDIR" "workdir"; then
+        return 1
+    fi
     if auto_detect_mount_root "$ABS_WORKDIR"; then
         ABS_MOUNT_ROOT="$AUTO_MOUNT_ROOT"
     else
@@ -264,6 +340,9 @@ determine_paths() {
         else
             return 1
         fi
+    fi
+    if ! ensure_directory "$ABS_MOUNT_ROOT" "mount-root"; then
+        return 1
     fi
     if ! is_subpath "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
         echo "workdir must be within mount-root" >&2
@@ -642,13 +721,29 @@ main() {
     done
 
     local subcommand=""
-    for arg in "$@"; do
+    local args=("$@")
+    local i=0
+    while [[ $i -lt ${#args[@]} ]]; do
+        local arg="${args[$i]}"
+        case "$arg" in
+            --mount-root|--workdir)
+                i=$((i + 2))
+                continue
+                ;;
+            -*)
+                i=$((i + 1))
+                continue
+                ;;
+        esac
         case "$arg" in
             shell|up|build|stop|down|status|name|help)
                 subcommand="$arg"
-                break
-                ;;
+            ;;
+            *)
+                subcommand="$arg"
+            ;;
         esac
+        break
     done
 
     if [[ "$has_help_flag" == true || "$subcommand" == "help" ]]; then

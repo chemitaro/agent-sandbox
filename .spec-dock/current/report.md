@@ -517,3 +517,33 @@ docker info >/dev/null 2>&1; echo $?
 #### メモ
 - Docker が利用できる環境で `sandbox shell` + DoD 検証スクリプトを実行してください。
 - 参考対象: /Users/iwasawayuuta/workspace/product/taikyohiyou_project
+
+---
+
+### 2026-01-23 00:00 - 2026-01-23 00:40
+
+#### 対象
+- Review fixes: symlink root, subcommand parsing, path existence, TZ detection, Dockerfile comments
+
+#### 実施内容
+- SANDBOX_ROOT を symlink 解決済みスクリプトパスから算出。
+- サブコマンド判定で `--mount-root/--workdir` の値を誤認しないように修正。
+- `mount-root/workdir` の存在チェックを追加。
+- macOS 向けに TZ 自動検出を安全側へ修正。
+- Dockerfile コメントを新 CLI に合わせて更新。
+- テスト追加: default shell の誤認防止、存在しないパスのエラー。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_paths.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox` - symlink 安全化、サブコマンド判定、パス存在チェック、TZ検出修正
+- `tests/sandbox_cli.test.sh` - サブコマンド誤認防止テストを追加
+- `tests/sandbox_paths.test.sh` - 存在しないパスのテストを追加
+- `Dockerfile` - コメント更新
+
+#### コミット
+- （未実施 / 禁止）

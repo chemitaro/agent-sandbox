@@ -139,9 +139,47 @@ paths_with_spaces_are_handled() {
     assert_eq "/srv/mount/sub dir" "$container_workdir"
 }
 
+missing_mount_root_fails() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    load_sandbox_functions "$tmp_dir"
+
+    local root="$tmp_dir/missing-root"
+    local workdir="$tmp_dir/work"
+    mkdir -p "$workdir"
+
+    CALLER_PWD="$tmp_dir"
+    parse_common_args --mount-root "$root" --workdir "$workdir"
+
+    if determine_paths; then
+        echo "Expected determine_paths to fail for missing mount-root" >&2
+        return 1
+    fi
+}
+
+missing_workdir_fails() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    load_sandbox_functions "$tmp_dir"
+
+    local root="$tmp_dir/root"
+    local workdir="$tmp_dir/missing-workdir"
+    mkdir -p "$root"
+
+    CALLER_PWD="$tmp_dir"
+    parse_common_args --mount-root "$root" --workdir "$workdir"
+
+    if determine_paths; then
+        echo "Expected determine_paths to fail for missing workdir" >&2
+        return 1
+    fi
+}
+
 run_test "mount_root_only_sets_workdir" mount_root_only_sets_workdir
 run_test "mount_root_and_workdir_maps_container_path" mount_root_and_workdir_maps_container_path
 run_test "workdir_outside_mount_root_fails" workdir_outside_mount_root_fails
 run_test "boundary_prefix_is_not_within" boundary_prefix_is_not_within
 run_test "relative_paths_resolve_from_caller_pwd" relative_paths_resolve_from_caller_pwd
 run_test "paths_with_spaces_are_handled" paths_with_spaces_are_handled
+run_test "missing_mount_root_fails" missing_mount_root_fails
+run_test "missing_workdir_fails" missing_workdir_fails
