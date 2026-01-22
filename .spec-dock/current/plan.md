@@ -239,7 +239,8 @@
 - Then:
   - `docker compose up -d --build` 相当が **SANDBOX_ROOT 基準（cwd）** で呼ばれる
   - 注入envに以下が含まれる:
-    - `CONTAINER_NAME` と `COMPOSE_PROJECT_NAME`（一致）
+    - `CONTAINER_NAME`（表示用）
+    - `COMPOSE_PROJECT_NAME`（Compose 制約に合う安全名）
     - `SOURCE_PATH`（= abs_mount_root）
     - `PRODUCT_WORK_DIR=/srv/mount`
     - `HOST_SANDBOX_PATH` / `HOST_USERNAME`

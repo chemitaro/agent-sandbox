@@ -95,6 +95,20 @@ STUB
     COMPOSE_LOG_FILE="$log_file"
 }
 
+compute_expected_compose_name() {
+    local tmp_dir="$1"
+    local mount_root="$2"
+    local workdir="$3"
+    # shellcheck source=/dev/null
+    source "$tmp_dir/host/sandbox"
+    CALLER_PWD="$tmp_dir"
+    local abs_root
+    local abs_workdir
+    abs_root="$(resolve_path "$mount_root")"
+    abs_workdir="$(resolve_path "$workdir")"
+    compute_compose_project_name "$abs_root" "$abs_workdir"
+}
+
 assert_log_contains() {
     local log_file="$1"
     local expected="$2"
@@ -305,11 +319,13 @@ up_injects_required_env() {
 
     run_cmd "$tmp_dir/host/sandbox" name --mount-root "$root" --workdir "$root"
     local expected_name="$RUN_STDOUT"
+    local expected_compose_name
+    expected_compose_name="$(compute_expected_compose_name "$tmp_dir" "$root" "$root")"
 
     run_cmd "$tmp_dir/host/sandbox" up --mount-root "$root" --workdir "$root"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file" "CONTAINER_NAME=$expected_name"
-    assert_log_contains "$log_file" "COMPOSE_PROJECT_NAME=$expected_name"
+    assert_log_contains "$log_file" "COMPOSE_PROJECT_NAME=$expected_compose_name"
     assert_log_contains "$log_file" "SOURCE_PATH=$(realpath "$root")"
     assert_log_contains "$log_file" "PRODUCT_WORK_DIR=/srv/mount"
     assert_log_contains "$log_file" "HOST_SANDBOX_PATH=$(realpath "$tmp_dir")"
@@ -499,11 +515,13 @@ shell_injects_dod_env_vars() {
 
     run_cmd "$tmp_dir/host/sandbox" name --mount-root "$root" --workdir "$root"
     local expected_name="$RUN_STDOUT"
+    local expected_compose_name
+    expected_compose_name="$(compute_expected_compose_name "$tmp_dir" "$root" "$root")"
 
     run_cmd "$tmp_dir/host/sandbox" shell --mount-root "$root" --workdir "$root"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "CONTAINER_NAME=$expected_name"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "COMPOSE_PROJECT_NAME=$expected_name"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "COMPOSE_PROJECT_NAME=$expected_compose_name"
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "SOURCE_PATH=$(realpath "$root")"
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "PRODUCT_WORK_DIR=/srv/mount"
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "HOST_SANDBOX_PATH=$(realpath "$tmp_dir")"
@@ -526,6 +544,29 @@ default_shell_ignores_option_value() {
     run_cmd "$tmp_dir/host/sandbox" --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/up agent-sandbox /bin/zsh"
+}
+
+compose_project_name_is_safe() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/My.Project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local expected_compose_name
+    expected_compose_name="$(compute_expected_compose_name "$tmp_dir" "$root" "$root")"
+
+    run_cmd "$tmp_dir/host/sandbox" up --mount-root "$root" --workdir "$root"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "COMPOSE_PROJECT_NAME=$expected_compose_name"
+    if ! echo "$expected_compose_name" | grep -Eq '^sandbox-[a-z0-9_-]+-[0-9a-f]{12}$'; then
+        echo "Expected compose project name to be lowercase and safe: $expected_compose_name" >&2
+        return 1
+    fi
 }
 
 build_only() {
@@ -596,12 +637,14 @@ stop_down_idempotent() {
 
     run_cmd "$tmp_dir_b/host/sandbox" name --mount-root "$root_b" --workdir "$root_b"
     local expected_name="$RUN_STDOUT"
+    local expected_compose_name
+    expected_compose_name="$(compute_expected_compose_name "$tmp_dir_b" "$root_b" "$root_b")"
 
     run_cmd "$tmp_dir_b/host/sandbox" stop --mount-root "$root_b" --workdir "$root_b"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file_b" "CMD=docker compose stop"
     assert_log_contains "$log_file_b" "CONTAINER_NAME=$expected_name"
-    assert_log_contains "$log_file_b" "COMPOSE_PROJECT_NAME=$expected_name"
+    assert_log_contains "$log_file_b" "COMPOSE_PROJECT_NAME=$expected_compose_name"
     if [[ ! -f "$tmp_dir_b/.env" || ! -d "$tmp_dir_b/.agent-home/.claude" ]]; then
         echo "Expected .env and .agent-home to be created for stop" >&2
         return 1
@@ -612,7 +655,7 @@ stop_down_idempotent() {
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file_b" "CMD=docker compose down"
     assert_log_contains "$log_file_b" "CONTAINER_NAME=$expected_name"
-    assert_log_contains "$log_file_b" "COMPOSE_PROJECT_NAME=$expected_name"
+    assert_log_contains "$log_file_b" "COMPOSE_PROJECT_NAME=$expected_compose_name"
 }
 
 status_output_keys() {
@@ -723,6 +766,7 @@ run_test "tz_injection_rules" tz_injection_rules
 run_test "shell_exec_w" shell_exec_w
 run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
 run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
+run_test "compose_project_name_is_safe" compose_project_name_is_safe
 run_test "build_only" build_only
 run_test "stop_down_idempotent" stop_down_idempotent
 run_test "status_output_keys" status_output_keys

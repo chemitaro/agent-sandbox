@@ -16,6 +16,8 @@
 
 ## 実装記録（セッションログ） (必須)
 
+> 時刻表記: JST (UTC+9)
+
 ### 2026-01-22 - 2026-01-22 15:26
 
 #### 対象
@@ -544,6 +546,59 @@ bash tests/sandbox_paths.test.sh
 - `tests/sandbox_cli.test.sh` - サブコマンド誤認防止テストを追加
 - `tests/sandbox_paths.test.sh` - 存在しないパスのテストを追加
 - `Dockerfile` - コメント更新
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 01:00 - 2026-01-23 01:30
+
+#### 対象
+- Review fixes: Compose project 名の安全化
+
+#### 実施内容
+- `COMPOSE_PROJECT_NAME` をコンテナ名とは別に安全な値へ正規化。
+- 低文字化 + 許可文字 `[a-z0-9_-]` のみ許可し、hash12 を維持。
+- テスト追加: 大文字/ドットを含むパスで compose project 名が安全になることを確認。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_paths.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox` - compose project 名生成/注入を分離
+- `tests/sandbox_cli.test.sh` - compose project 名のテストを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 01:30 - 2026-01-23 02:00
+
+#### 対象
+- Review fix: Compose project 名の安全化（続き）
+
+#### 実施内容
+- `COMPOSE_PROJECT_NAME` を安全名へ分離し、`docker-compose.yml` の `name:` も安全名に合わせた。
+- テストに安全名の検証を追加。
+- 設計/計画の記述を更新（`COMPOSE_PROJECT_NAME` は安全名）。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+bash tests/sandbox_paths.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox` - compose project 名生成/注入の分離
+- `tests/sandbox_cli.test.sh` - compose project 名のテストを追加
+- `docker-compose.yml` - name を COMPOSE_PROJECT_NAME に変更
+- `.spec-dock/current/design.md` - 設計の記述更新
+- `.spec-dock/current/plan.md` - テスト観測点の記述更新
 
 #### コミット
 - （未実施 / 禁止）

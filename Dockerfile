@@ -88,7 +88,7 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Set default TMUX_SESSION_NAME for direct docker access
-# This will be overridden by sandbox CLI when accessed from tmux
+# This can be overridden by host-side tooling when accessed from tmux
 ENV TMUX_SESSION_NAME=non-tmux
 
 # Create sandbox and workspace directories and set permissions

@@ -15,9 +15,6 @@ FORBIDDEN_MOUNT_ROOTS=(
 
 realpath_safe() {
     local target="$1"
-    if [[ ! -e "$target" && ! -L "$target" ]]; then
-        return 1
-    fi
     if command -v realpath >/dev/null 2>&1; then
         local resolved
         if resolved="$(realpath "$target" 2>/dev/null)"; then
@@ -25,11 +22,16 @@ realpath_safe() {
             return 0
         fi
     fi
-    python3 - <<'PY' "$target"
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - <<'PY' "$target"
 import os
 import sys
 print(os.path.realpath(sys.argv[1]))
 PY
+        return $?
+    fi
+    echo "realpath is required (install coreutils or python3)" >&2
+    return 1
 }
 
 SCRIPT_PATH="$(realpath_safe "${BASH_SOURCE[0]}")"
@@ -43,8 +45,11 @@ resolve_path() {
     else
         target="$CALLER_PWD/$input"
     fi
-    if ! realpath_safe "$target"; then
+    if [[ ! -e "$target" && ! -L "$target" ]]; then
         echo "path does not exist: $target" >&2
+        return 1
+    fi
+    if ! realpath_safe "$target"; then
         return 1
     fi
 }
@@ -52,6 +57,10 @@ resolve_path() {
 ensure_directory() {
     local path="$1"
     local label="$2"
+    if [[ -e "$path" && ! -d "$path" ]]; then
+        echo "$label is not a directory: $path" >&2
+        return 1
+    fi
     if [[ ! -d "$path" ]]; then
         echo "$label does not exist: $path" >&2
         return 1
@@ -177,7 +186,8 @@ select_compose_cmd() {
 
 prepare_compose_env() {
     local container_name="$1"
-    local abs_mount_root="$2"
+    local compose_project_name="$2"
+    local abs_mount_root="$3"
 
     local tz_env=()
     if resolve_tz_injection; then
@@ -189,7 +199,7 @@ prepare_compose_env() {
 
     COMPOSE_ENV=(
         "CONTAINER_NAME=$container_name"
-        "COMPOSE_PROJECT_NAME=$container_name"
+        "COMPOSE_PROJECT_NAME=$compose_project_name"
         "SOURCE_PATH=$abs_mount_root"
         "PRODUCT_WORK_DIR=/srv/mount"
         "HOST_SANDBOX_PATH=$SANDBOX_ROOT"
@@ -208,22 +218,28 @@ run_compose() {
 
 run_compose_up() {
     local container_name="$1"
-    local abs_mount_root="$2"
+    local compose_project_name="$2"
+    local abs_mount_root="$3"
 
-    prepare_compose_env "$container_name" "$abs_mount_root"
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
     run_compose up -d --build
 }
 
 run_compose_exec() {
     local container_workdir="$1"
+    local container_name="$2"
+    local compose_project_name="$3"
+    local abs_mount_root="$4"
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
     run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh
 }
 
 run_compose_build() {
     local container_name="$1"
-    local abs_mount_root="$2"
+    local compose_project_name="$2"
+    local abs_mount_root="$3"
 
-    prepare_compose_env "$container_name" "$abs_mount_root"
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
     run_compose build
 }
 
@@ -508,6 +524,23 @@ normalize_slug() {
     echo "$slug"
 }
 
+normalize_compose_slug() {
+    local raw="$1"
+    local slug
+    slug="$(echo "$raw" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_-]+/-/g; s/^-+//; s/-+$//')"
+
+    if [[ -z "$slug" ]]; then
+        slug="dir"
+    fi
+
+    local max_slug_len=42
+    if (( ${#slug} > max_slug_len )); then
+        slug="${slug:0:max_slug_len}"
+    fi
+
+    echo "$slug"
+}
+
 compute_hash12() {
     local key="$1"
     local digest=""
@@ -555,6 +588,33 @@ compute_container_name() {
     echo "sandbox-${slug}-${hash12}"
 }
 
+compute_compose_project_name() {
+    local abs_mount_root="$1"
+    local abs_workdir="$2"
+
+    local base_mount
+    local base_workdir
+    base_mount="$(basename "$abs_mount_root")"
+    base_workdir="$(basename "$abs_workdir")"
+
+    local slug_raw
+    if [[ "$base_mount" == "$base_workdir" ]]; then
+        slug_raw="$base_workdir"
+    else
+        slug_raw="${base_mount}-${base_workdir}"
+    fi
+
+    local slug
+    slug="$(normalize_compose_slug "$slug_raw")"
+
+    local key
+    key="${abs_mount_root}"$'\n'"${abs_workdir}"
+    local hash12
+    hash12="$(compute_hash12 "$key")"
+
+    echo "sandbox-${slug}-${hash12}"
+}
+
 ensure_docker_available() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "docker command not found" >&2
@@ -577,17 +637,19 @@ container_exists() {
 
 run_compose_stop() {
     local container_name="$1"
-    local abs_mount_root="$2"
+    local compose_project_name="$2"
+    local abs_mount_root="$3"
 
-    prepare_compose_env "$container_name" "$abs_mount_root"
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
     run_compose stop
 }
 
 run_compose_down() {
     local container_name="$1"
-    local abs_mount_root="$2"
+    local compose_project_name="$2"
+    local abs_mount_root="$3"
 
-    prepare_compose_env "$container_name" "$abs_mount_root"
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
     run_compose down
 }
 
@@ -779,12 +841,14 @@ main() {
         fi
         local container_name
         container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local compose_project_name
+        compose_project_name="$(compute_compose_project_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
         ensure_env_file
         ensure_agent_home_dirs
         if ! select_compose_cmd; then
             exit 1
         fi
-        run_compose_up "$container_name" "$ABS_MOUNT_ROOT"
+        run_compose_up "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
         exit $?
     fi
 
@@ -802,6 +866,8 @@ main() {
         fi
         local container_name
         container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local compose_project_name
+        compose_project_name="$(compute_compose_project_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
         local container_workdir
         container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
         ensure_env_file
@@ -809,8 +875,8 @@ main() {
         if ! select_compose_cmd; then
             exit 1
         fi
-        run_compose_up "$container_name" "$ABS_MOUNT_ROOT"
-        run_compose_exec "$container_workdir"
+        run_compose_up "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        run_compose_exec "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
         exit $?
     fi
 
@@ -824,12 +890,14 @@ main() {
         fi
         local container_name
         container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local compose_project_name
+        compose_project_name="$(compute_compose_project_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
         ensure_env_file
         ensure_agent_home_dirs
         if ! select_compose_cmd; then
             exit 1
         fi
-        run_compose_build "$container_name" "$ABS_MOUNT_ROOT"
+        run_compose_build "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
         exit $?
     fi
 
@@ -843,6 +911,8 @@ main() {
         fi
         local container_name
         container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local compose_project_name
+        compose_project_name="$(compute_compose_project_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
         if ! container_exists "$container_name"; then
             echo "No matching sandbox container: $container_name"
             exit 0
@@ -853,9 +923,9 @@ main() {
             exit 1
         fi
         if [[ "$subcommand" == "stop" ]]; then
-            run_compose_stop "$container_name" "$ABS_MOUNT_ROOT"
+            run_compose_stop "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
         else
-            run_compose_down "$container_name" "$ABS_MOUNT_ROOT"
+            run_compose_down "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
         fi
         exit $?
     fi

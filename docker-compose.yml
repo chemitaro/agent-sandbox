@@ -1,4 +1,4 @@
-name: ${CONTAINER_NAME:-agent-sandbox}
+name: ${COMPOSE_PROJECT_NAME:-agent-sandbox}
 
 services:
   agent-sandbox:  # Updated container name

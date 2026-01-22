@@ -310,7 +310,9 @@
 - 注入する環境変数:
   - `IF-ENV-001` の値を **すべての compose 呼び出し**（`build`/`up`/`exec`/`stop`/`down`）に必ず注入する（同一インスタンスへ確実に到達するため）。
 - プロジェクト分離（複数インスタンス共存のため必須）:
-  - `COMPOSE_PROJECT_NAME=$CONTAINER_NAME` を起動時に必ず注入する
+  - `COMPOSE_PROJECT_NAME` は **Compose 制約に合う安全な名前**を注入する
+    - 例: `sandbox-<lowercase slug>-<hash12>`（`[a-z0-9_-]` のみ）
+    - `CONTAINER_NAME` とは同一でなくてよい（表示用は可読性優先）
     - 目的: 同一 compose ファイルから複数プロジェクトを共存させ、network 等の衝突を避ける
 - 事前判定（対象コンテナの有無）:
   - まず Docker デーモンへ疎通できることを確認する（stderr 文字列ではなく **終了コード** で判定する）。
