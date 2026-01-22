@@ -105,7 +105,8 @@
   - 生成/保持ファイルを増やさない:
     - コンテナごとに `.env` や docker-compose yaml、Dockerfile を生成して保持しない。
     - 1つの `docker-compose.yml` を使い回し、インスタンス固有値は起動コマンド実行時に注入する。
-    - `.env` は secrets/common の静的ファイルとしてユーザーが管理し、ツールは自動生成/上書きしない。
+    - `.env` は secrets/common の静的ファイルとしてユーザーが管理し、ツールは **秘密情報を含む `.env` を自動生成/上書きしない**。
+      - ただし、`docker-compose.yml` の `env_file: .env` により起動が失敗しないよう、`.env` が存在しない場合のみ **空の `.env` を作成して継続してよい**（空ファイル作成は secrets 生成ではない）。
 - MUST NOT（絶対にやらない／追加しない）:
   - コンテナ名の手動指定機能（`--name` 等）は追加しない。
   - “広すぎる” `mount-root` を自動推定した場合、無理に包含しない（エラーで拒否する）。
@@ -116,7 +117,7 @@
   - 複数マウント（追加パス）や ro/rw 指定などの高度なマウント機能。
   - Homebrew/npm などでの配布（インストール）まで含めた整備。
   - Devcontainer の追従（特に「動的マウント/複数コンテナ」モードに合わせた `.devcontainer/devcontainer.json` 自動更新や、複数インスタンス対応）。
-  - 旧 `sandbox.config` / `scripts/generate-env.sh` / `make start` / `make shell` フローの互換性維持（= 旧フローを残したまま同等に動くことの保証）。
+  - 旧 `sandbox.config` / `scripts/generate-env.sh` / `make start` / `make shell` フローの互換性維持（= 旧フローを残したまま同等に動くことの保証。**2026-01-22 ユーザー合意**）。
 
 ## 非交渉制約（守るべき制約） (必須)
 - **動的マウント起動モード**のコンテナ内マウント先は固定: `/srv/mount`。
@@ -198,7 +199,7 @@
         - 例: `repo_root=/a/b/repo` のとき、`mount-root=/a/b`（遡り=1）は許容し、`mount-root=/a`（遡り=2）は拒否する
   - 観測点: Host 出力（エラーメッセージ、終了コード）
 - AC-006: （削除）既存運用の互換性
-  - メモ: ユーザー合意により、旧 `sandbox.config` / `make start` フローの互換性は要求しない（OUT OF SCOPE）。
+  - メモ: **2026-01-22 ユーザー合意**により、旧 `sandbox.config` / `make start` フローの互換性は要求しない（OUT OF SCOPE）。
 - AC-007: 引数なし起動（git 管理外ディレクトリ）
   - Actor/Role: 開発者
   - Given: git 管理外のディレクトリで PWD が作業対象である
@@ -242,6 +243,30 @@
     - 同一コンテナ名が選ばれ、コンテナが “増殖” しない
     - 既に存在するが停止中の場合は、そのコンテナが再起動される
   - 観測点: `docker ps -a` の名前一覧 / OrbStack UI 上のコンテナ数
+- AC-012: 明示指定起動（`--mount-root` のみ指定）
+  - Actor/Role: 開発者
+  - Given: `--mount-root` に実在するディレクトリを指定できる
+  - When: 起動スクリプトに `--mount-root <path>` のみを指定して実行する
+  - Then:
+    - `workdir` は `mount-root` と同一に補完される
+    - 指定した `mount-root` が `/srv/mount` にマウントされる
+    - 初期作業ディレクトリ（`pwd`）は `/srv/mount` になる
+  - 観測点:
+    - Host 出力: `mount-root` / `workdir` が同一であることが表示される
+    - Container: `pwd` が `/srv/mount` である
+- AC-013: 明示指定起動（`--workdir` のみ指定）
+  - Actor/Role: 開発者
+  - Given: `--workdir` に実在するディレクトリを指定できる
+  - When: 起動スクリプトに `--workdir <path>` のみを指定して実行する
+  - Then:
+    - `workdir` は指定値が採用される
+    - `mount-root` は以下のルールで補完される
+      - git 管理下なら git 情報を解析して自動推定される（worktree を包含。ガードあり）
+      - git 管理外なら `mount-root=workdir` が採用される
+    - 初期作業ディレクトリ（`pwd`）は、指定した `workdir` に対応する `/srv/mount/...` になる
+  - 観測点:
+    - Host 出力: `mount-root` / `workdir` / コンテナ名が表示される
+    - Container: `pwd` が期待通り（`workdir` 相当の `/srv/mount/...`）である
 
 ### 入力→出力例 (任意)
 - EX-001: 引数なし（worktree内）

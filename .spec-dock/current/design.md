@@ -95,6 +95,12 @@
 
 ### Compose へ注入する値（動的モード）
 - IF-ENV-001: 変数注入（docker compose 実行時）
+  - `TZ=<timezone>`（未設定なら検出して注入する）
+    - ルール:
+      - 既に `TZ` が設定されている場合（ユーザーの `.env` や環境変数）はそれを尊重する（上書きしない）
+      - 未設定の場合はホストの timezone を検出して注入する（失敗時は `Asia/Tokyo`）
+    - 理由:
+      - `docker-compose.yml` は `TZ=${TZ}` をコンテナへ渡すため、未設定だとコンテナ内 `TZ` が空になり得る（`docker-compose.yml:27-33`）。
   - `CONTAINER_NAME=<computed>`（AC-004/011）
   - `SOURCE_PATH=<abs_mount_root>`（volume mount の host 側）
   - `PRODUCT_WORK_DIR=/srv/mount`（TERM-005 dynamic）
@@ -289,6 +295,8 @@
 - AC-009 → 既存 `docker-compose.yml` の docker.sock mount と `scripts/docker-entrypoint.sh` を維持
 - AC-010 → TERM-005/006 に従い、`PRODUCT_WORK_DIR=/srv/mount`, `HOST_PRODUCT_PATH=abs_mount_root` を注入（IF-ENV-001）
 - AC-011 → 具体設計(6,7)（決定的名前→同一コンテナを再利用）
+- AC-012 → IF-CLI-001 / 具体設計(2,5,7) / `host/sandbox`
+- AC-013 → IF-CLI-001 / 具体設計(2,3,4,5,7) / `host/sandbox`
 - EC-001 → 具体設計(2)（包含関係チェック）
 - EC-003 → 具体設計(3)（git 取得失敗→明示指定を促す）
 - EC-004 → 具体設計(6)（slug 正規化/長さ制限）
@@ -303,8 +311,8 @@
 - 追加するテスト（案）:
   - Unit（Bash）:
     - `tests/sandbox_name.test.sh`: slug 正規化 / 63文字制限 / hash 決定性（AC-004, EC-004）
-    - `tests/sandbox_paths.test.sh`: `container_workdir` 変換（AC-001/002/007, EC-001）
-    - `tests/sandbox_git_detect.test.sh`: worktree list パース→LCA→ガード（AC-001/005, EC-003）
+    - `tests/sandbox_paths.test.sh`: `container_workdir` 変換（AC-001/002/007/012/013, EC-001）
+    - `tests/sandbox_git_detect.test.sh`: worktree list パース→LCA→ガード（AC-001/005/013, EC-003）
 - 実行コマンド（案）:
   - `bash tests/sandbox_name.test.sh`
   - `bash tests/sandbox_paths.test.sh`
