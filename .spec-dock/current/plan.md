@@ -51,6 +51,7 @@
 - [ ] S12: 旧フローの整理（README/Makefile/scripts）を反映する
 - [ ] S13: DoD 実動の簡易integration検証を行う（手動）
 - [ ] S15: timezone 検出失敗でも CLI が落ちない（best-effort）
+- [ ] S16: Python 依存を撤去し、シェルのみで realpath を実現する
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-018 → S01
@@ -69,6 +70,7 @@
 - AC-008 → S11
 - OUT OF SCOPE 反映（旧フロー整理） → S12
 - 非交渉制約（timezone best-effort） → S15
+- 非交渉制約（Python 依存を持たない） → S16
 
 ---
 
@@ -488,6 +490,27 @@
 - Given: `readlink` / `systemsetup` / `timedatectl` が失敗する環境
 - When: `detect_timezone` を呼び出す
 - Then: 失敗で CLI が終了せず、`Asia/Tokyo` 等の既定値へフォールバックする
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] テスト成功
+- [ ] `report.md` 更新
+- [ ] `update_plan` 更新
+- [ ] コミット（ユーザーが必要なら実施）
+
+---
+
+### S16 — Python 依存を撤去し、シェルのみで realpath を実現する (必須)
+- 対象: 非交渉制約（Python 依存なし）
+- 設計参照: パス正規化（Python 非依存）
+- 対象テスト: `tests/sandbox_realpath.test.sh::realpath_fallback_without_python`
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `realpath` が無い（または失敗する）環境
+- When: `realpath_safe` を symlink パスに対して呼び出す
+- Then: Python に依存せず、実体パスが返る
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] テスト成功

@@ -164,6 +164,12 @@
   - `HOST_SANDBOX_PATH=<abs_path_to_agent-sandbox_repo>`（既存互換）
   - `HOST_USERNAME=<whoami>`（既存互換）
 
+### パス正規化（Python 非依存）
+- `host/sandbox` のパス解決は **シェルのみ**で実現する
+  - `realpath` が使える場合は利用する
+  - `realpath` が無い場合は `readlink` による symlink 解決 + `cd -P` / `pwd -P` で正規化
+  - `python3` には依存しない（環境依存を減らす）
+
 ### `docker-compose.yml` の扱い
 - IF-COMPOSE-001: 共有 env（`.env`）の扱い
   - 方針（Q-004 決定）:

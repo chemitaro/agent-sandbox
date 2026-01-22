@@ -22,16 +22,28 @@ realpath_safe() {
             return 0
         fi
     fi
-    if command -v python3 >/dev/null 2>&1; then
-        python3 - <<'PY' "$target"
-import os
-import sys
-print(os.path.realpath(sys.argv[1]))
-PY
+    local link_target="$target"
+    if command -v readlink >/dev/null 2>&1; then
+        while [[ -L "$link_target" ]]; do
+            local link
+            link="$(readlink "$link_target" 2>/dev/null || true)"
+            if [[ -z "$link" ]]; then
+                break
+            fi
+            if [[ "$link" != /* ]]; then
+                link_target="$(dirname "$link_target")/$link"
+            else
+                link_target="$link"
+            fi
+        done
+    fi
+    if [[ -d "$link_target" ]]; then
+        (cd -P "$link_target" && pwd -P)
         return $?
     fi
-    echo "realpath is required (install coreutils or python3)" >&2
-    return 1
+    local dir
+    dir="$(cd -P "$(dirname "$link_target")" && pwd -P)" || return 1
+    printf '%s/%s\n' "$dir" "$(basename "$link_target")"
 }
 
 SCRIPT_PATH="$(realpath_safe "${BASH_SOURCE[0]}")"

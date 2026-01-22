@@ -665,3 +665,29 @@ bash tests/sandbox_timezone.test.sh
 
 #### コミット
 - （未実施 / 禁止）
+
+---
+
+### 2026-01-23 03:00 - 2026-01-23 03:30
+
+#### 対象
+- Step: S16（Python 依存撤去 / shell-only realpath）
+
+#### 実施内容
+- `realpath_safe` の Python 依存を撤去し、`readlink` + `cd -P` で正規化。
+- テスト追加: `realpath` が失敗する環境でも symlink を解決できることを確認。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_realpath.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox` - shell-only realpath に変更
+- `tests/sandbox_realpath.test.sh` - realpath フォールバックのテスト追加
+- `.spec-dock/current/requirement.md` - 非交渉制約に Python 非依存を追記
+- `.spec-dock/current/design.md` - パス正規化の設計を追記
+- `.spec-dock/current/plan.md` - S16 追加
+
+#### コミット
+- （未実施 / 禁止）

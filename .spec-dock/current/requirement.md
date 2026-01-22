@@ -161,6 +161,7 @@
 - Docker-on-Docker を壊さない（`docker` CLI が使え、ホストパスで volume mount できる前提を維持する）。
 - 追加の yaml/ Dockerfile をインスタンスごとに生成して保存しない（運用負荷を増やさない）。
 - timezone 検出はベストエフォートとし、外部コマンド失敗があっても CLI を停止させない（失敗時は既定値へフォールバック）。
+- `host/sandbox` は **Python 依存を持たず**、シェルのみでパス正規化を行う（`realpath` が無い環境でも動作する）。
 
 ## 前提（Assumptions） (必須)
 - ホスト側で `docker` / `docker compose` が利用できる。
