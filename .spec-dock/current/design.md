@@ -5,7 +5,7 @@
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
 状態: "draft"
 作成者: "Codex CLI"
-最終更新: "2026-01-22"
+最終更新: "2026-01-23"
 依存: ["requirement.md"]
 ---
 
@@ -356,6 +356,13 @@
   - セッション内で実行する実処理:
     - “tmux を作らない内部モード”で `sandbox` を再実行する（例: `SANDBOX_CODEX_NO_TMUX=1`）
     - 内部モードは `sandbox shell` と同様に `docker compose up -d --build` を行った後、`docker compose exec` を実行する
+    - tmux セッション作成時のカレントディレクトリは `CALLER_PWD` を使う（例: `tmux new-session ... -c "$CALLER_PWD"`）
+  - 引数パース（`--` 境界）:
+    - `sandbox codex` は `--` で引数を分割し、`--` より前だけを “sandbox の引数” として解釈する
+      - `--` より後は **必ず** “codex 引数” として扱い、sandbox の共通引数（`--mount-root/--workdir`）や help 判定の対象にしない
+      - 例: `sandbox codex -- --help` は sandbox help と誤認してはいけない（codex 側へ渡す）
+      - 例: `sandbox codex -- --workdir up` のような “sandbox 側の引数名に見える文字列” でも、codex 引数としてそのまま渡す
+    - 実装上は `parse_common_args` や `-h/--help` 検出を、分割後の “sandbox 側引数” のみに対して行う（`--` 以降を全走査しない）
   - 引数（重要）:
     - `sandbox codex [--mount-root <path>] [--workdir <path>] -- [codex args...]`
     - `--` 以降は codex 引数としてそのまま扱い、sandbox 側で解釈しない（`-h/--help` を含む）

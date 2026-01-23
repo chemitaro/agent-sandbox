@@ -5,7 +5,7 @@
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
 状態: "draft"
 作成者: "Codex CLI"
-最終更新: "2026-01-22"
+最終更新: "2026-01-23"
 ---
 
 # FEAT-005 動的マウント起動（任意ディレクトリをSandboxとして起動） — 要件定義（WHAT / WHY）
@@ -420,6 +420,8 @@
     - Container: `codex resume` が起動し、終了後に zsh が利用できること
   - 補足:
     - `sandbox codex` では `--` 以降は codex 引数として扱い、sandbox の引数（`--mount-root`/`--workdir`/`-h/--help` など）として解釈しない
+      - 例: `sandbox codex -- --help` は **sandbox の help ではなく** codex 側のヘルプとして扱う（sandbox は `--` 以降を見ない）
+      - 例: `sandbox codex -- --workdir up` のように “sandbox 側の引数名に見える文字列” が含まれても、`--` 以降は codex 引数としてそのまま渡す
 
 ### 入力→出力例 (任意)
 - EX-001: 引数なし（worktree内）

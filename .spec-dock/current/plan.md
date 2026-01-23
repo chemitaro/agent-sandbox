@@ -5,7 +5,7 @@
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
 状態: "draft"
 作成者: "Codex CLI"
-最終更新: "2026-01-22"
+最終更新: "2026-01-23"
 依存: ["requirement.md", "design.md"]
 ---
 
@@ -456,6 +456,7 @@
   - `docker-compose.yml` の docker.sock mount / DoD env（`HOST_PRODUCT_PATH` / `PRODUCT_WORK_DIR`）
   - IF-ENV-001（`SOURCE_PATH=abs_mount_root`, `PRODUCT_WORK_DIR=/srv/mount`）
 - 検証: 手動（実 docker / 実コンテナ）
+- 手順（正）: `@.spec-dock/current/decision/S13_manual_steps.md`（この plan では観測点だけ固定し、詳細手順は重複させない）
 
 #### update_plan（着手時に登録） (必須)
 - [ ] `update_plan` に登録した
@@ -465,9 +466,7 @@
   - ホストで Docker が利用できる
   - `/Users/iwasawayuuta/workspace/product/taikyohiyou_project` が存在する（無い場合は同等の DoD 対象リポジトリで代替可。採用した代替パスは `report.md` に記録する）
 - When:
-  - 作業対象リポジトリ（`taikyohiyou_project` または代替）を対象に `sandbox shell` で起動/接続する
-  - コンテナ内で `docker version` を実行する
-  - コンテナ内で DoD を前提とする検証スクリプトを実行する（例: `taikyohiyou_project/scripts/git/detect_git_env.sh`）
+  - `@.spec-dock/current/decision/S13_manual_steps.md` の手順に従って検証を実施する
 - Then:
   - `docker version` が失敗しない（DoD が利用できる）
   - 検証スクリプトが期待通りの “コンテナ内パス→ホストパス変換” を行える（例: `taikyohiyou_project` では `.env.git` の `CURRENT_PROJECT_PATH` がホスト絶対パスになる）
@@ -560,6 +559,14 @@
   - Given: `tmux` が見つからない
   - When: `sandbox codex` を実行する
   - Then: EC-006 に従い、エラーで終了する（exit 0 ではない）
+
+#### 実装注意点（罠の先回り） (必須)
+- `sandbox codex` 実装では `--` を **最優先で分割**し、sandbox 側の引数パース（共通引数/サブコマンド判定/help 判定）は `--` より前だけを対象にする
+  - 現状の `host/sandbox` は `-h/--help` を「引数のどこにあっても」拾う実装のため、素直に `sandbox codex -- --help` を実装すると sandbox help と誤認し得る（要件違反）。必ず `--` で打ち切る。
+  - `parse_common_args` も同様に `--` より後を見ない（codex args 側の `--workdir` 等を誤パースしない）
+- S17 のスタブテストでは、コマンドログに `$*` を直列化して残すと（空白/クォートを含む codex args で）検証が壊れやすい
+  - 方針: スタブは `printf '%q ' "$@"` を使ってログに残す（または同等の“引数境界が失われない”形式）
+  - これにより `sandbox codex -- --help` だけでなく、将来 `sandbox codex -- --message "hello world"` のようなケースも壊れにくくなる
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] テスト成功

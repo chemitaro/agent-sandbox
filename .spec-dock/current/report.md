@@ -5,7 +5,7 @@
 関連Issue: ["https://github.com/chemitaro/agent-sandbox/issues/5"]
 状態: "draft"
 作成者: "Codex CLI"
-最終更新: "2026-01-22"
+最終更新: "2026-01-23"
 依存: ["requirement.md", "design.md", "plan.md"]
 ---
 
@@ -59,6 +59,27 @@ rg -n "sandbox status|AC-020" .spec-dock/current/requirement.md .spec-dock/curre
 - `.spec-dock/current/requirement.md`（AC-021/EC-006、help例外、前提/制約の追記）
 - `.spec-dock/current/design.md`（IF/具体設計/マッピング/テスト戦略の追記）
 - `.spec-dock/current/plan.md`（S17 追加、対象AC/EC/対応表更新）
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23（JST）
+
+#### 対象
+- 仕様更新（Planning / `sandbox codex` 実装上の罠の明文化）
+
+#### 実施内容
+- レビュア指摘を反映し、`sandbox codex` 実装で詰まりやすいポイントを仕様（design/plan）へ明文化。
+  - `--` 境界: `--` 以降は help 判定/共通引数パース対象外（`sandbox codex -- --help` 誤認防止）
+  - テストスタブ: `$*` 直列化に依存せず、`printf '%q '` 等で引数境界を保持する方針
+- S13 手動検証は `@.spec-dock/current/decision/S13_manual_steps.md` を正として参照し、plan 側の重複を減らした。
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md`（AC-021 補足例の追記）
+- `.spec-dock/current/design.md`（`sandbox codex` の `--` 境界/パース注意点の追記）
+- `.spec-dock/current/plan.md`（S13 参照の一本化、S17 実装注意点の追記）
 
 #### コミット
 - （未実施 / 禁止）
