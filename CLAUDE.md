@@ -86,14 +86,6 @@ Docker ソケットをマウントしているため、コンテナ内から Doc
 - `git status`/`git diff` は OK
 - `git commit`/`merge`/`push` は **ホスト側** で実行してください
 
-## Tmux セッション（任意）
-
-```bash
-make tmux-claude my-session
-make tmux-claude-wt feature-branch
-make tmux-opencode my-session
-```
-
 ## 注意事項
 
 - `help` / `name` / `status` は副作用なし（`.env` や `.agent-home` を作らない）

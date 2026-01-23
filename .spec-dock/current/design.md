@@ -27,7 +27,7 @@
   - `Dockerfile`: `scripts/*` をコンテナに配置し、エントリポイントを `docker-entrypoint.sh` に設定。(`Dockerfile`:191-223)
   - `scripts/generate-git-ro-overrides.sh`: Git metadata を read-only でマウントするための override 生成（削除済み）。(`scripts/generate-git-ro-overrides.sh`:1-108)
   - `docker-compose.git-ro.yml`: `volumes: []` のみで read-only 仕様を無効化した痕跡（削除済み）。(`docker-compose.git-ro.yml`:1-5)
-  - `Makefile`: `scripts/install-sandbox.sh` / `scripts/get-tmux-session.sh` を呼び出す。(`Makefile`:5-26)
+  - `Makefile`: `scripts/install-sandbox.sh` を呼び出す（公開コマンドは `install` / `help`）。(`Makefile`:1-)
 - 観測した現状（事実）:
   - `product/` は空ディレクトリで `.keep` のみ存在していた（削除済み）。
   - `git log` の大きな変更は PR #6 (`317aefd`, `chemitaro/issue5`) に集約されている。
@@ -64,9 +64,12 @@
   - `.spec-dock/current/discussions/garbage-files.md`: 未使用候補の棚卸し結果と根拠の記録
 - 変更（Modify）:
   - `Makefile`: `install` / `help` のみに整理し、不要変数と古いヘルプを削除
-  - `README.md` / `CLAUDE.md`: 削除対象が記載されている場合のみ参照更新
+  - `Dockerfile`: tmux エージェント起動用ラッパーコマンド登録を削除
+  - `README.md` / `CLAUDE.md`: tmux エージェント起動の案内を削除（現行 Makefile と整合）
+  - `.env.example`: `.env` 運用向けの説明に更新
 - 削除（Delete）:
   - `sandbox.config`: 役目を終えたため削除
+  - `scripts/tmux-claude`, `scripts/tmux-codex`, `scripts/tmux-opencode`: tmux + エージェント起動の補助（不要方針のため削除）
   - その他、棚卸し結果で確定した未使用ファイル
 - 移動/リネーム（Move/Rename）:
   - `sandbox.config.example` → `.env.example`: 例示ファイルとして保持
@@ -112,20 +115,14 @@
 ├── scripts/
 │   ├── docker-entrypoint.sh
 │   ├── init-firewall.sh
-│   ├── slack-notify.js
-│   ├── tmux-claude
-│   ├── tmux-codex
-│   └── tmux-opencode
+│   ├── install-sandbox.sh
+│   └── slack-notify.js
 ├── tests/
 │   └── *.sh
 ├── docker-compose.yml
-├── docker-compose.git-ro.yml  # Delete? (棚卸し結果で確定)
 ├── Dockerfile
 ├── Makefile
-├── sandbox.config             # Delete
-├── sandbox.config.example     # Rename -> .env.example
-└── product/
-    └── .keep                  # Delete? (棚卸し結果で確定)
+└── .env.example
 ```
 
 ## 省略/例外メモ (必須)

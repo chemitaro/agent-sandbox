@@ -83,23 +83,9 @@ copy their contents once into `.agent-home/` before starting the container.
 # Inside the container
 claude --dangerously-skip-permissions
 
-# Or use tmux sessions (from host)
-make tmux-claude my-project      # Start tmux session with Claude
-make tmux-claude-wt feature-xyz  # Start in specific worktree
-make tmux-opencode my-project    # Start tmux session with OpenCode
-make tmux-opencode-wt feature-xyz  # Start in specific worktree
-```
-
-6. One-command tmux sessions (inside container):
-```sh
-# Always attach to a unique session in /srv/mount
-tmux-claude   # Unique Claude Code session named "claude"
-tmux-codex    # Unique Codex CLI session named "codex"
-tmux-opencode # Unique OpenCode session named "opencode"
-
-# Both commands:
-# - Attach if the session already exists
-# - Otherwise create the session in /srv/mount and start the tool
+# Other agent CLIs (inside the container)
+codex resume
+opencode
 ```
 
 ### Git access inside the container

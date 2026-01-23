@@ -201,14 +201,6 @@ COPY scripts/slack-notify.js /opt/sandbox/scripts/
 RUN chmod +x /opt/sandbox/scripts/slack-notify.js && \
     ln -s /opt/sandbox/scripts/slack-notify.js /usr/local/bin/slack-notify
 
-# Register tmux wrapper commands without requiring executable bit on scripts
-RUN printf '#!/usr/bin/env bash\nexec bash /opt/sandbox/scripts/tmux-codex "$@"\n' > /usr/local/bin/tmux-codex && \
-    chmod +x /usr/local/bin/tmux-codex && \
-    printf '#!/usr/bin/env bash\nexec bash /opt/sandbox/scripts/tmux-claude "$@"\n' > /usr/local/bin/tmux-claude && \
-    chmod +x /usr/local/bin/tmux-claude && \
-    printf '#!/usr/bin/env bash\nexec bash /opt/sandbox/scripts/tmux-opencode "$@"\n' > /usr/local/bin/tmux-opencode && \
-    chmod +x /usr/local/bin/tmux-opencode
-
 # Set up Docker environment
 ENV DOCKER_CONFIG=/home/node/.docker
 ENV DOCKER_HOST=unix:///var/run/docker.sock

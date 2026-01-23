@@ -102,6 +102,44 @@ for t in tests/*.sh; do bash "$t"; done
 
 ---
 
+### 2026-01-23 12:43 - 13:12
+
+#### 対象
+- Step: S03
+- AC/EC: AC-003
+
+#### 実施内容
+- tmux + エージェント起動の補助スクリプト（`scripts/tmux-*`）を削除し、関連ドキュメント/ビルド手順から参照を除去。
+- テストを再実行して成功を確認。
+
+#### 実行コマンド / 結果
+```bash
+rg -n "\\btmux-(claude|codex|opencode)\\b" .
+rm scripts/tmux-claude scripts/tmux-codex scripts/tmux-opencode
+
+bash tests/sandbox_cli.test.sh
+for t in tests/*.sh; do bash "$t"; done
+```
+
+#### 変更したファイル
+- `Dockerfile` - tmux ラッパーコマンド登録を削除
+- `README.md` - tmux 起動手順の削除
+- `CLAUDE.md` - tmux 起動手順の削除
+- `.spec-dock/current/design.md` - 変更計画/見取り図の更新
+- `.spec-dock/current/plan.md` - S03 を追加
+- `.spec-dock/current/discussions/garbage-files.md` - 削除済み項目を追記
+
+#### 変更・削除したファイル
+- 削除: `scripts/tmux-claude`, `scripts/tmux-codex`, `scripts/tmux-opencode`
+
+#### コミット
+- 実施せず（禁止操作のため）
+
+#### メモ
+- 該当なし
+
+---
+
 ## 遭遇した問題と解決 (任意)
 - 該当なし
 
