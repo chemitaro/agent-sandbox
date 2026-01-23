@@ -1,7 +1,3 @@
-# productディレクトリ内のファイルは無視するが、ディレクトリ自体は保持
-product/*
-!product/.keep
-
 # macOS
 .DS_Store
 
@@ -21,9 +17,6 @@ product/*
 !.agent-home/.opencode/command/
 !.agent-home/.opencode/plugin/
 .env
-sandbox.config
 
 # Auto-generated devcontainer files (template is tracked, generated file is not)
 .devcontainer/devcontainer.json
-
-docker-compose.git-ro.yml
