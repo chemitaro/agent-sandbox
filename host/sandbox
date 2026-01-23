@@ -2,6 +2,9 @@
 set -euo pipefail
 
 CALLER_PWD="${CALLER_PWD:-$(pwd)}"
+CODEX_SANDBOX_ARGS=()
+CODEX_ARGS=()
+CODEX_HAS_DOUBLE_DASH=false
 MAX_UP_LEVEL=1
 FORBIDDEN_MOUNT_ROOTS=(
     "/"
@@ -246,6 +249,20 @@ run_compose_exec() {
     run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh
 }
 
+run_compose_exec_codex() {
+    local container_workdir="$1"
+    local container_name="$2"
+    local compose_project_name="$3"
+    local abs_mount_root="$4"
+    shift 4
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
+    if [[ $# -gt 0 ]]; then
+        run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'codex resume "$@"; exec /bin/zsh' -- "$@"
+    else
+        run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'codex resume; exec /bin/zsh'
+    fi
+}
+
 run_compose_build() {
     local container_name="$1"
     local compose_project_name="$2"
@@ -281,6 +298,26 @@ parse_common_args() {
                 shift
                 ;;
         esac
+    done
+}
+
+split_codex_args() {
+    CODEX_SANDBOX_ARGS=()
+    CODEX_ARGS=()
+    CODEX_HAS_DOUBLE_DASH=false
+
+    local seen_double_dash=false
+    for arg in "$@"; do
+        if [[ "$seen_double_dash" == false && "$arg" == "--" ]]; then
+            seen_double_dash=true
+            CODEX_HAS_DOUBLE_DASH=true
+            continue
+        fi
+        if [[ "$seen_double_dash" == true ]]; then
+            CODEX_ARGS+=("$arg")
+        else
+            CODEX_SANDBOX_ARGS+=("$arg")
+        fi
     done
 }
 
@@ -644,6 +681,14 @@ compute_compose_project_name() {
     echo "sandbox-${slug}-${hash12}"
 }
 
+compute_codex_session_name() {
+    local base
+    base="$(basename "$CALLER_PWD")"
+    base="${base//:/_}"
+    base="${base//./_}"
+    echo "${base}-codex-sandbox"
+}
+
 ensure_docker_available() {
     if ! command -v docker >/dev/null 2>&1; then
         echo "docker command not found" >&2
@@ -651,6 +696,14 @@ ensure_docker_available() {
     fi
     if ! docker info >/dev/null 2>&1; then
         echo "docker daemon is not reachable" >&2
+        return 1
+    fi
+    return 0
+}
+
+ensure_tmux_available() {
+    if ! command -v tmux >/dev/null 2>&1; then
+        echo "tmux command not found" >&2
         return 1
     fi
     return 0
@@ -707,6 +760,7 @@ Commands:
   down     Stop and remove the container
   status   Show container status
   name     Print computed container name
+  codex    Start tmux + sandbox + codex resume
   help     Show this help
 
 Options:
@@ -800,22 +854,34 @@ Options:
 USAGE
 }
 
+print_help_codex() {
+    cat <<'USAGE'
+Usage: sandbox codex [options] -- [codex args...]
+
+Create/attach a tmux session, start the sandbox, and run "codex resume".
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
+Notes:
+  Arguments after "--" are passed to codex (e.g., sandbox codex -- --help).
+USAGE
+}
+
 main() {
     CALLER_PWD="${CALLER_PWD:-$(pwd)}"
-
-    local has_help_flag=false
-    for arg in "$@"; do
-        if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
-            has_help_flag=true
-            break
-        fi
-    done
+    CODEX_SANDBOX_ARGS=()
+    CODEX_ARGS=()
+    CODEX_HAS_DOUBLE_DASH=false
 
     local subcommand=""
     local args=("$@")
     local i=0
     while [[ $i -lt ${#args[@]} ]]; do
         local arg="${args[$i]}"
+        if [[ "$arg" == "--" ]]; then
+            break
+        fi
         case "$arg" in
             --mount-root|--workdir)
                 i=$((i + 2))
@@ -827,7 +893,7 @@ main() {
                 ;;
         esac
         case "$arg" in
-            shell|up|build|stop|down|status|name|help)
+            shell|up|build|stop|down|status|name|help|codex)
                 subcommand="$arg"
             ;;
             *)
@@ -836,6 +902,24 @@ main() {
         esac
         break
     done
+
+    local has_help_flag=false
+    if [[ "$subcommand" == "codex" ]]; then
+        split_codex_args "$@"
+        for arg in "${CODEX_SANDBOX_ARGS[@]}"; do
+            if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+                has_help_flag=true
+                break
+            fi
+        done
+    else
+        for arg in "$@"; do
+            if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+                has_help_flag=true
+                break
+            fi
+        done
+    fi
 
     if [[ "$has_help_flag" == true || "$subcommand" == "help" ]]; then
         case "$subcommand" in
@@ -846,9 +930,71 @@ main() {
             down)   print_help_down ;;
             status) print_help_status ;;
             name)   print_help_name ;;
+            codex)  print_help_codex ;;
             *)      print_help ;;
         esac
         exit 0
+    fi
+
+    if [[ "$subcommand" == "codex" ]]; then
+        split_codex_args "$@"
+        if [[ -z "${SANDBOX_CODEX_NO_TMUX:-}" ]]; then
+            if ! ensure_tmux_available; then
+                exit 1
+            fi
+            local session_name
+            session_name="$(compute_codex_session_name)"
+            local cmd=()
+            cmd+=(env SANDBOX_CODEX_NO_TMUX=1 "$SCRIPT_PATH")
+            cmd+=("${CODEX_SANDBOX_ARGS[@]}")
+            if [[ "$CODEX_HAS_DOUBLE_DASH" == true ]]; then
+                cmd+=(--)
+                if [[ ${CODEX_ARGS+x} ]]; then
+                    cmd+=("${CODEX_ARGS[@]}")
+                fi
+            fi
+            if tmux has-session -t "=$session_name" 2>/dev/null; then
+                if [[ -n "${TMUX:-}" ]]; then
+                    tmux switch-client -t "=$session_name"
+                else
+                    tmux attach-session -t "=$session_name"
+                fi
+            else
+                tmux new-session -d -s "$session_name" -c "$CALLER_PWD" "${cmd[@]}"
+                if [[ -n "${TMUX:-}" ]]; then
+                    tmux switch-client -t "=$session_name"
+                else
+                    tmux attach-session -t "=$session_name"
+                fi
+            fi
+            exit 0
+        fi
+
+        parse_common_args "${CODEX_SANDBOX_ARGS[@]}"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local compose_project_name
+        compose_project_name="$(compute_compose_project_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local container_workdir
+        container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        ensure_env_file
+        ensure_agent_home_dirs
+        if ! select_compose_cmd; then
+            exit 1
+        fi
+        run_compose_up "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        if [[ ${CODEX_ARGS+x} ]]; then
+            run_compose_exec_codex "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" "${CODEX_ARGS[@]}"
+        else
+            run_compose_exec_codex "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        fi
+        exit $?
     fi
 
     if [[ "$subcommand" == "name" ]]; then

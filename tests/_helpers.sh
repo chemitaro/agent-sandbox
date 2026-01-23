@@ -87,6 +87,16 @@ assert_stdout_contains() {
     fi
 }
 
+assert_stderr_contains() {
+    local expected="$1"
+    local actual="$2"
+    if [[ "$actual" != *"$expected"* ]]; then
+        echo "Expected stderr to contain: $expected" >&2
+        echo "Actual stderr: $actual" >&2
+        return 1
+    fi
+}
+
 assert_no_files_created() {
     local tmp_dir="$1"
     if [[ -e "$tmp_dir/.env" || -e "$tmp_dir/.agent-home" ]]; then

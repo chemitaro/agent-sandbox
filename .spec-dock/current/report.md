@@ -45,6 +45,117 @@ rg -n "sandbox status|AC-020" .spec-dock/current/requirement.md .spec-dock/curre
 
 ---
 
+### 2026-01-23 10:10 - 2026-01-23 10:25
+
+#### 対象
+- バグ修正: `sandbox codex` 実行時の `CODEX_ARGS[@]` unbound variable
+
+#### 実施内容
+- `CODEX_ARGS`/`CODEX_SANDBOX_ARGS`/`CODEX_HAS_DOUBLE_DASH` をグローバル初期化し、`set -u` でも空配列として参照可能に修正。
+
+#### 実行コマンド / 結果
+```bash
+# こちらの環境では mktemp 制限のため未実行
+# sandbox codex
+```
+
+#### 変更したファイル
+- `host/sandbox` - codex 引数配列のグローバル初期化を追加
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 10:30 - 2026-01-23 10:45
+
+#### 対象
+- バグ修正: `sandbox codex` 実行時の `CODEX_ARGS[@]` unbound variable 再発対策
+
+#### 実施内容
+- `CODEX_ARGS` が未定義でも安全に扱えるよう、tmux起動時と `run_compose_exec_codex` 呼び出し時に空配列フォールバックを追加。
+
+#### 実行コマンド / 結果
+```bash
+# こちらの環境では mktemp 制限のため未実行
+# sandbox codex
+```
+
+#### 変更したファイル
+- `host/sandbox` - codex args の安全なフォールバックを追加
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 10:50 - 2026-01-23 11:05
+
+#### 対象
+- バグ修正: `sandbox codex` 実行時の `codex_args[@]` unbound variable
+
+#### 実施内容
+- `codex_args` のローカル配列参照を廃止し、`CODEX_ARGS` が未定義でも安全に処理できる分岐へ変更。
+
+#### 実行コマンド / 結果
+```bash
+# こちらの環境では mktemp 制限のため未実行
+# sandbox codex
+```
+
+#### 変更したファイル
+- `host/sandbox` - codex args の参照方式を安全化
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 11:15 - 2026-01-23 11:25
+
+#### 対象
+- バグ修正: `sandbox codex` 実行時の `codex_args[@]` unbound variable（再発）
+
+#### 実施内容
+- `run_compose_exec_codex` で `codex_args` ローカル配列を廃止し、`"$@"` を直接渡す形に変更。
+
+#### 実行コマンド / 結果
+```bash
+# こちらの環境では mktemp 制限のため未実行
+# sandbox codex
+```
+
+#### 変更したファイル
+- `host/sandbox` - codex args を直接渡すよう修正
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23 11:30 - 2026-01-23 11:45
+
+#### 対象
+- バグ修正: `sandbox codex` 実行時の `codex resume` が `_` をIDとして受け取る問題
+
+#### 実施内容
+- `run_compose_exec_codex` の `-- _ "$@"` を廃止し、引数がある場合のみ `-- "$@"` を渡すよう変更。
+- 引数なしの場合は `codex resume` をそのまま実行。
+
+#### 実行コマンド / 結果
+```bash
+# こちらの環境では mktemp 制限のため未実行
+# sandbox codex
+```
+
+#### 変更したファイル
+- `host/sandbox` - codex 引数の渡し方を修正
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
 ### 2026-01-22（JST）
 
 #### 対象
@@ -80,6 +191,58 @@ rg -n "sandbox status|AC-020" .spec-dock/current/requirement.md .spec-dock/curre
 - `.spec-dock/current/requirement.md`（AC-021 補足例の追記）
 - `.spec-dock/current/design.md`（`sandbox codex` の `--` 境界/パース注意点の追記）
 - `.spec-dock/current/plan.md`（S13 参照の一本化、S17 実装注意点の追記）
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23（JST）
+
+#### 対象
+- Step: S17（`sandbox codex` 追加の不具合修正）
+
+#### 実施内容
+- `sandbox codex` で `--` なしのケースでも `CODEX_ARGS` が未定義にならないよう、`main` で配列を初期化。
+- テスト追加: `--` なしで `sandbox codex` を実行しても落ちないことを確認するケースを追加。
+
+#### 実行コマンド / 結果
+```bash
+# （この環境では mktemp が禁止のためテスト未実行）
+# bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox`
+- `tests/sandbox_cli.test.sh`
+
+#### コミット
+- （未実施 / 禁止）
+
+---
+
+### 2026-01-23（JST）
+
+#### 対象
+- Step: S17（`sandbox codex` 追加）
+
+#### 実施内容
+- `sandbox codex` を実装（tmux セッション作成/再利用 → 内部モードで `codex resume` を起動）。
+- `--` 境界のパースを追加し、`--` 以降の `--help` / `--workdir` を sandbox 側が誤解釈しないようにした。
+- `codex` 連携の `docker compose exec` を追加（`codex resume "$@"; exec /bin/zsh`）。
+- テスト追加（tmux stub / codex 内部モード / `--` 境界 / tmux 不在エラー）。
+- Docker compose スタブログの引数記録を `printf '%q '` に変更（引数境界を保持）。
+
+#### 実行コマンド / 結果
+```bash
+# （この環境では mktemp が禁止のためテスト未実行）
+# bash tests/sandbox_cli.test.sh
+```
+
+#### 変更したファイル
+- `host/sandbox`（codex サブコマンド追加、tmux起動、`--` 境界パース、exec 追加）
+- `tests/sandbox_cli.test.sh`（codex テスト + tmux stub + ログ改善）
+- `tests/_helpers.sh`（assert_stderr_contains 追加）
 
 #### コミット
 - （未実施 / 禁止）

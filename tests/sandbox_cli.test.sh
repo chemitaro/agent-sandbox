@@ -53,7 +53,9 @@ if [[ "$1" == "compose" ]]; then
 
     {
         echo "PWD=$(pwd)"
-        echo "CMD=docker compose $*"
+        printf 'CMD='
+        printf '%q ' docker compose "$@"
+        printf '\n'
         echo "CONTAINER_NAME=${CONTAINER_NAME-}"
         echo "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME-}"
         echo "SOURCE_PATH=${SOURCE_PATH-}"
@@ -82,7 +84,9 @@ fi
 
 {
     echo "PWD=$(pwd)"
-    echo "CMD=docker-compose $*"
+    printf 'CMD='
+    printf '%q ' docker-compose "$@"
+    printf '\n'
 } >> "${STUB_DOCKER_LOG}"
 exit 0
 STUB
@@ -90,9 +94,48 @@ STUB
     chmod +x "$stub_dir/docker" "$stub_dir/docker-compose"
 
     export STUB_DOCKER_LOG="$log_file"
+    export COMPOSE_STUB_DIR="$stub_dir"
     export PATH="$stub_dir:$(path_without_docker)"
     hash -r
     COMPOSE_LOG_FILE="$log_file"
+}
+
+setup_tmux_stubs() {
+    local tmp_dir="$1"
+    local stub_dir="${COMPOSE_STUB_DIR:-$tmp_dir/compose-stubs}"
+    local log_file="$tmp_dir/tmux.log"
+    mkdir -p "$stub_dir"
+    : > "$log_file"
+
+    cat > "$stub_dir/tmux" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+
+log_file="${STUB_TMUX_LOG:-}"
+if [[ -n "$log_file" ]]; then
+    printf 'CMD=' >> "$log_file"
+    printf '%q ' "$0" "$@" >> "$log_file"
+    printf '\n' >> "$log_file"
+fi
+
+case "${1:-}" in
+    has-session)
+        if [[ "${STUB_TMUX_HAS_SESSION:-0}" == "1" ]]; then
+            exit 0
+        fi
+        exit 1
+        ;;
+    new-session|attach-session|switch-client)
+        exit 0
+        ;;
+esac
+
+exit 0
+STUB
+
+    chmod +x "$stub_dir/tmux"
+    export STUB_TMUX_LOG="$log_file"
+    hash -r
 }
 
 compute_expected_compose_name() {
@@ -747,6 +790,110 @@ status_has_no_side_effects() {
     assert_no_files_created "$tmp_dir"
 }
 
+codex_outer_uses_tmux_and_session_name() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+
+    export STUB_TMUX_HAS_SESSION=0
+
+    local base_dir="$tmp_dir/My.Project:One"
+    mkdir -p "$base_dir"
+
+    CALLER_PWD="$base_dir" run_cmd "$tmp_dir/host/sandbox" codex
+    assert_exit_code 0 "$RUN_CODE"
+
+    local expected_session="My_Project_One-codex-sandbox"
+    assert_log_contains "$tmux_log" "has-session"
+    assert_log_contains "$tmux_log" "new-session"
+    assert_log_contains "$tmux_log" "=$expected_session"
+    assert_log_contains "$tmux_log" "SANDBOX_CODEX_NO_TMUX=1"
+    assert_log_contains "$tmux_log" "$tmp_dir/host/sandbox"
+    assert_log_not_contains "$COMPOSE_LOG_FILE" "CMD="
+    assert_no_files_created "$tmp_dir"
+}
+
+codex_inner_runs_codex_resume_and_returns_to_zsh() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir" -- --workdir up
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose up -d --build"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir"
+    assert_log_contains "$log_file" "codex"
+    assert_log_contains "$log_file" "resume"
+    assert_log_contains "$log_file" "exec /bin/zsh"
+    assert_log_contains "$log_file" "--workdir"
+    assert_log_contains "$log_file" "up"
+}
+
+codex_inner_without_double_dash_uses_default_args() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose up -d --build"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir"
+    assert_log_contains "$log_file" "codex"
+    assert_log_contains "$log_file" "resume"
+    assert_log_contains "$log_file" "exec /bin/zsh"
+}
+
+codex_help_flag_after_double_dash_is_passed_to_codex() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$root" -- --help
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ "$RUN_STDOUT" == *"Usage: sandbox"* ]]; then
+        echo "Sandbox help was printed unexpectedly" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "--help"
+}
+
+codex_errors_when_tmux_missing() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    local no_tmux_path
+    no_tmux_path="$(path_without_docker)"
+
+    PATH="$no_tmux_path" hash -r
+    PATH="$no_tmux_path" run_cmd "$tmp_dir/host/sandbox" codex
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected tmux error for codex" >&2
+        return 1
+    fi
+    assert_stderr_contains "tmux command not found" "$RUN_STDERR"
+}
+
 run_test "help_top_level" help_top_level
 run_test "help_subcommand" help_subcommand
 run_test "help_any_position" help_any_position
@@ -772,3 +919,8 @@ run_test "stop_down_idempotent" stop_down_idempotent
 run_test "status_output_keys" status_output_keys
 run_test "status_not_found_vs_docker_error" status_not_found_vs_docker_error
 run_test "status_has_no_side_effects" status_has_no_side_effects
+run_test "codex_outer_uses_tmux_and_session_name" codex_outer_uses_tmux_and_session_name
+run_test "codex_inner_runs_codex_resume_and_returns_to_zsh" codex_inner_runs_codex_resume_and_returns_to_zsh
+run_test "codex_inner_without_double_dash_uses_default_args" codex_inner_without_double_dash_uses_default_args
+run_test "codex_help_flag_after_double_dash_is_passed_to_codex" codex_help_flag_after_double_dash_is_passed_to_codex
+run_test "codex_errors_when_tmux_missing" codex_errors_when_tmux_missing
