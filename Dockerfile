@@ -167,16 +167,7 @@ fi
 exec uv tool run --managed-python --python "$PY" --from "$FROM" pre-commit "$@"
 SH
 
-# Codex CLI config directory (persisted via volume)
-ENV CODEX_CONFIG_DIR=/home/node/.codex
-
-# Gemini CLI config directory (persisted via volume)
-ENV GEMINI_CONFIG_DIR=/home/node/.gemini
-
-# OpenCode config/data/cache directories (persisted via volume)
-ENV OPENCODE_CONFIG_DIR=/home/node/.config/opencode
-ENV OPENCODE_DATA_DIR=/home/node/.local/share/opencode
-ENV OPENCODE_CACHE_DIR=/home/node/.cache/opencode
+# CLI config/cache directories are stored under /home/node and can be persisted via host bind mounts.
 
 # Switch back to root for script setup
 USER root

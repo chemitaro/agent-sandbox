@@ -15,23 +15,9 @@ services:
       - "0"  # Add node user to root group for Docker socket access
     environment:
       - NODE_OPTIONS=--max-old-space-size=4096
-      - CLAUDE_CONFIG_DIR=/home/node/.claude
-      - CODEX_CONFIG_DIR=/home/node/.codex
-      - GEMINI_CONFIG_DIR=/home/node/.gemini
-      - OPENCODE_CONFIG_DIR=/home/node/.config/opencode
-      - OPENCODE_DATA_DIR=/home/node/.local/share/opencode
-      - OPENCODE_CACHE_DIR=/home/node/.cache/opencode
       - POWERLEVEL9K_DISABLE_GITSTATUS=true
-      - DEVCONTAINER=true
       # Timezone
       - TZ=${TZ}
-      # Docker-on-Docker settings
-      - HOST_SANDBOX_PATH=${HOST_SANDBOX_PATH}
-      - HOST_USERNAME=${HOST_USERNAME}
-      - HOST_PRODUCT_PATH=${SOURCE_PATH}
-      - PRODUCT_NAME=${PRODUCT_NAME}
-      - PRODUCT_WORK_DIR=${PRODUCT_WORK_DIR}
-      - DOCKER_HOST=unix:///var/run/docker.sock
     volumes:
       - .:/opt/sandbox:delegated  # Sandbox tools mount
       - ${SOURCE_PATH}:${PRODUCT_WORK_DIR}  # Product code mount

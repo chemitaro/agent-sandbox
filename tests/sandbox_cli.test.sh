@@ -527,6 +527,57 @@ tz_injection_rules() {
     fi
 }
 
+config_env_var_noise_is_not_present() {
+    local dockerfile="$REPO_ROOT/Dockerfile"
+    local compose_file="$REPO_ROOT/docker-compose.yml"
+
+    local failures=0
+
+    local dockerfile_tokens=(
+        "ENV CODEX_CONFIG_DIR="
+        "ENV GEMINI_CONFIG_DIR="
+        "ENV OPENCODE_CONFIG_DIR="
+        "ENV OPENCODE_DATA_DIR="
+        "ENV OPENCODE_CACHE_DIR="
+    )
+
+    local compose_tokens=(
+        "CLAUDE_CONFIG_DIR="
+        "CODEX_CONFIG_DIR="
+        "GEMINI_CONFIG_DIR="
+        "OPENCODE_CONFIG_DIR="
+        "OPENCODE_DATA_DIR="
+        "OPENCODE_CACHE_DIR="
+        "HOST_SANDBOX_PATH="
+        "HOST_USERNAME="
+        "HOST_PRODUCT_PATH="
+        "PRODUCT_NAME="
+        "PRODUCT_WORK_DIR="
+        "DOCKER_HOST="
+        "DEVCONTAINER="
+    )
+
+    for token in "${dockerfile_tokens[@]}"; do
+        if grep -nF "$token" "$dockerfile" >/dev/null 2>&1; then
+            echo "Unexpected token in Dockerfile: $token" >&2
+            grep -nF "$token" "$dockerfile" >&2 || true
+            failures=$((failures + 1))
+        fi
+    done
+
+    for token in "${compose_tokens[@]}"; do
+        if grep -nF "$token" "$compose_file" >/dev/null 2>&1; then
+            echo "Unexpected token in docker-compose.yml: $token" >&2
+            grep -nF "$token" "$compose_file" >&2 || true
+            failures=$((failures + 1))
+        fi
+    done
+
+    if [[ "$failures" -ne 0 ]]; then
+        return 1
+    fi
+}
+
 shell_exec_w() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
@@ -997,6 +1048,7 @@ run_test "up_creates_agent_home_dirs" up_creates_agent_home_dirs
 run_test "compose_command_selection_v2" compose_command_selection_v2
 run_test "compose_v1_is_rejected" compose_v1_is_rejected
 run_test "tz_injection_rules" tz_injection_rules
+run_test "config_env_var_noise_is_not_present" config_env_var_noise_is_not_present
 run_test "shell_exec_w" shell_exec_w
 run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
 run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
