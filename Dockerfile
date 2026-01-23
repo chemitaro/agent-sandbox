@@ -119,12 +119,8 @@ USER node
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH=$PATH:/usr/local/share/npm-global/bin
 
-# Copy npm configuration files to a temporary location that won't be overwritten by volume mount
-COPY --chown=node:node package.json .npmrc /tmp/npm-setup/
-
-# Install npm packages based on package.json from temporary location
-# Clear npm cache to ensure latest versions are fetched
-RUN cd /tmp/npm-setup && npm cache clean --force && npm run install-global && rm -rf /tmp/npm-setup
+# Ensure npm cache directory exists (may be mounted as a shared volume at runtime)
+RUN mkdir -p /home/node/.npm/_cache
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh

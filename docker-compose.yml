@@ -35,6 +35,9 @@ services:
     volumes:
       - .:/opt/sandbox:delegated  # Sandbox tools mount
       - ${SOURCE_PATH}:${PRODUCT_WORK_DIR}  # Product code mount
+      # Shared global CLI/tools (cross-project)
+      - sandbox-npm-global:/usr/local/share/npm-global
+      - sandbox-npm-cache:/home/node/.npm/_cache
       - ./.agent-home/commandhistory:/commandhistory
       - ./.agent-home/.claude:/home/node/.claude
       - ./.agent-home/.codex:/home/node/.codex
@@ -57,4 +60,8 @@ services:
     tty: true
     init: true
 
- 
+volumes:
+  sandbox-npm-global:
+    name: sandbox-npm-global
+  sandbox-npm-cache:
+    name: sandbox-npm-cache

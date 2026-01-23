@@ -673,6 +673,60 @@ build_cache() {
     assert_log_not_contains "$log_file" "CMD=docker compose build --no-cache"
 }
 
+tools_update_runs_compose() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" name --mount-root "$root" --workdir "$root"
+    local expected_name="$RUN_STDOUT"
+    local expected_compose_name
+    expected_compose_name="$(compute_expected_compose_name "$tmp_dir" "$root" "$root")"
+
+    local lock_dir="$tmp_dir/tools-update.lock"
+    PATH="$PATH" run_cmd env SANDBOX_TOOLS_UPDATE_LOCK_DIR="$lock_dir" \
+        "$tmp_dir/host/sandbox" tools update --mount-root "$root" --workdir "$root"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose run"
+    assert_log_contains "$log_file" "install-global"
+    assert_log_contains "$log_file" "CONTAINER_NAME=${expected_name}-tools-update"
+    assert_log_contains "$log_file" "COMPOSE_PROJECT_NAME=$expected_compose_name"
+    assert_log_not_contains "$log_file" "CMD=docker compose build"
+    assert_log_not_contains "$log_file" "CMD=docker compose up"
+    assert_log_not_contains "$log_file" "CMD=docker compose exec"
+}
+
+tools_update_locking() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local lock_dir="$tmp_dir/tools-update.lock"
+    mkdir -p "$lock_dir"
+
+    PATH="$PATH" run_cmd env SANDBOX_TOOLS_UPDATE_LOCK_DIR="$lock_dir" \
+        "$tmp_dir/host/sandbox" tools update --mount-root "$root" --workdir "$root"
+
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected tools update to fail when lock exists" >&2
+        return 1
+    fi
+    assert_stderr_contains "Another tools update is in progress" "$RUN_STDERR"
+    assert_log_not_contains "$log_file" "CMD="
+}
+
 stop_down_idempotent() {
     # Case A: target not found => no-op
     local tmp_dir_a
@@ -950,6 +1004,8 @@ run_test "compose_project_name_is_safe" compose_project_name_is_safe
 run_test "build_only" build_only
 run_test "build_no_cache" build_no_cache
 run_test "build_cache" build_cache
+run_test "tools_update_runs_compose" tools_update_runs_compose
+run_test "tools_update_locking" tools_update_locking
 run_test "stop_down_idempotent" stop_down_idempotent
 run_test "status_output_keys" status_output_keys
 run_test "status_not_found_vs_docker_error" status_not_found_vs_docker_error

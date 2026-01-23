@@ -5,6 +5,7 @@ CALLER_PWD="${CALLER_PWD:-$(pwd)}"
 CODEX_SANDBOX_ARGS=()
 CODEX_ARGS=()
 CODEX_HAS_DOUBLE_DASH=false
+TOOLS_UPDATE_LOCK_DIR=""
 MAX_UP_LEVEL=1
 FORBIDDEN_MOUNT_ROOTS=(
     "/"
@@ -273,6 +274,16 @@ run_compose_build() {
     run_compose build "$@"
 }
 
+run_compose_run() {
+    local container_name="$1"
+    local compose_project_name="$2"
+    local abs_mount_root="$3"
+    shift 3
+
+    prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
+    run_compose run "$@"
+}
+
 parse_common_args() {
     MOUNT_ROOT_ARG=""
     WORKDIR_ARG=""
@@ -300,6 +311,65 @@ parse_common_args() {
                 ;;
         esac
     done
+}
+
+extract_tools_action() {
+    local args=("$@")
+    local i=0
+
+    while [[ $i -lt ${#args[@]} ]]; do
+        local arg="${args[$i]}"
+        if [[ "$arg" == "--" ]]; then
+            break
+        fi
+        case "$arg" in
+            --mount-root|--workdir)
+                i=$((i + 2))
+                continue
+                ;;
+            -*)
+                i=$((i + 1))
+                continue
+                ;;
+        esac
+        if [[ "$arg" == "tools" ]]; then
+            i=$((i + 1))
+            break
+        fi
+        i=$((i + 1))
+    done
+
+    while [[ $i -lt ${#args[@]} ]]; do
+        local arg="${args[$i]}"
+        if [[ "$arg" == "--" ]]; then
+            break
+        fi
+        case "$arg" in
+            --mount-root|--workdir)
+                i=$((i + 2))
+                continue
+                ;;
+            -*)
+                i=$((i + 1))
+                continue
+                ;;
+        esac
+        echo "$arg"
+        return 0
+    done
+
+    echo ""
+    return 0
+}
+
+acquire_tools_update_lock() {
+    TOOLS_UPDATE_LOCK_DIR="${SANDBOX_TOOLS_UPDATE_LOCK_DIR:-/tmp/sandbox-tools-update.lock}"
+    if mkdir "$TOOLS_UPDATE_LOCK_DIR" 2>/dev/null; then
+        trap 'rm -rf "$TOOLS_UPDATE_LOCK_DIR"' EXIT
+        return 0
+    fi
+    echo "Another tools update is in progress (lock: $TOOLS_UPDATE_LOCK_DIR)" >&2
+    return 1
 }
 
 split_codex_args() {
@@ -757,6 +827,7 @@ Commands:
   shell    Start (if needed) and open a shell (default)
   up       Build and start the container
   build    Build images only
+  tools    Manage shared tools
   stop     Stop the container
   down     Stop and remove the container
   status   Show container status
@@ -768,6 +839,20 @@ Options:
   --mount-root <path>   Host mount root
   --workdir <path>      Host working directory
   -h, --help            Show help
+USAGE
+}
+
+print_help_tools() {
+    cat <<'USAGE'
+Usage: sandbox tools <command> [options]
+
+Commands:
+  update   Update shared npm global tools (codex/claude/gemini/opencode, etc.)
+
+Options:
+  --mount-root <path>
+  --workdir <path>
+  -h, --help
 USAGE
 }
 
@@ -896,7 +981,7 @@ main() {
                 ;;
         esac
         case "$arg" in
-            shell|up|build|stop|down|status|name|help|codex)
+            shell|up|build|tools|stop|down|status|name|help|codex)
                 subcommand="$arg"
             ;;
             *)
@@ -929,6 +1014,7 @@ main() {
             shell)  print_help_shell ;;
             up)     print_help_up ;;
             build)  print_help_build ;;
+            tools)  print_help_tools ;;
             stop)   print_help_stop ;;
             down)   print_help_down ;;
             status) print_help_status ;;
@@ -1092,6 +1178,53 @@ main() {
         else
             run_compose_build "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
         fi
+        exit $?
+    fi
+
+    if [[ "$subcommand" == "tools" ]]; then
+        local tools_action
+        tools_action="$(extract_tools_action "$@")"
+        if [[ "$tools_action" != "update" ]]; then
+            if [[ -z "$tools_action" ]]; then
+                echo "Missing tools subcommand" >&2
+            else
+                echo "Unknown tools command: $tools_action" >&2
+            fi
+            echo "" >&2
+            print_help_tools >&2
+            exit 1
+        fi
+
+        parse_common_args "$@"
+        if ! determine_paths; then
+            exit 1
+        fi
+        if ! ensure_docker_available; then
+            exit 1
+        fi
+        local container_name
+        container_name="$(compute_container_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local compose_project_name
+        compose_project_name="$(compute_compose_project_name "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
+        local tools_container_name="${container_name}-tools-update"
+        if ! acquire_tools_update_lock; then
+            exit 1
+        fi
+        ensure_env_file
+        ensure_agent_home_dirs
+        if ! select_compose_cmd; then
+            exit 1
+        fi
+
+        local tools_cmd
+        tools_cmd=$'set -euo pipefail\n'\
+$'mkdir -p /usr/local/share/npm-global /home/node/.npm/_cache\n'\
+$'chown -R node:node /usr/local/share/npm-global /home/node/.npm\n'\
+$'cd /opt/sandbox\n'\
+$'gosu node npm run install-global\n'
+
+        run_compose_run "$tools_container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" \
+            --rm --no-deps --user root -w /opt/sandbox --entrypoint /bin/bash agent-sandbox -lc "$tools_cmd"
         exit $?
     fi
 
