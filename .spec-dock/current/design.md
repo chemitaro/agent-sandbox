@@ -92,6 +92,7 @@
     - `sandbox down`（停止+削除）
     - `sandbox status`（状態表示）
     - `sandbox name`（コンテナ名の表示）
+    - `sandbox codex`（tmux セッション作成 + codex 起動）
     - `sandbox -h` / `sandbox --help`（`sandbox help` と同義）
     - `sandbox <subcommand> -h` / `sandbox <subcommand> --help`（サブコマンド固有ヘルプ）
   - 引数（共通）:
@@ -104,6 +105,7 @@
     - 例外（ヘルプ）:
       - `help` / `-h` / `--help` は **パス決定・検証より先に処理**し、無効なパス指定が混ざっていてもヘルプを表示して exit 0 で終了する。
         - `-h/--help` は **引数のどこに現れても最優先**（例: `sandbox help --workdir /nope` / `sandbox shell --workdir /nope --help`）。
+        - 例外: `sandbox codex` は `--` 以降を codex 引数として扱うため、`--` 以降に出現する `-h/--help` は sandbox 側で解釈しない（codex へ渡す）
   - 振る舞い（サブコマンド別）:
     - `sandbox shell` / `sandbox`:
       - 対象コンテナが起動していなければ起動する（必要なら build）
@@ -126,6 +128,11 @@
     - `sandbox name`:
       - 対象インスタンスの `container_name` を合成して標準出力へ 1 行だけ出力し、exit 0
       - Docker の状態（存在/稼働/停止）は問わない（Docker を見に行かない）
+    - `sandbox codex`:
+      - tmux セッション名を自動生成し、同名があれば再利用（attach/switch）する
+      - tmux セッション内で、対象コンテナを起動/接続し `codex resume` を起動する
+      - `--` 以降の引数は `codex resume` にそのまま渡す（`codex args` が空なら `codex resume` のみ）
+      - `codex` 終了後もコンテナ内シェル（zsh）へ戻れるようにする
     - `sandbox help` / `-h` / `--help`:
       - ヘルプ（Usage/サブコマンド一覧/共通引数/例）を表示し、exit 0
   - 標準出力（観測点）:
@@ -143,6 +150,7 @@
   - 終了コード:
     - 0: 成功（`stop`/`down` は “対象が無い” 場合も成功）
     - 非0: 入力不正、git解析失敗、ガード違反、docker失敗 など
+    - `codex` は tmux の起動/接続に失敗した場合や、内部の起動がエラーになった場合は非0でよい
 
 ### Compose へ注入する値（動的モード）
 - IF-ENV-001: 変数注入（docker compose 実行時）
@@ -336,6 +344,24 @@
   - `sandbox up` 相当で起動状態を確保した後に接続する
   - 接続: `docker compose exec -w "$container_workdir" agent-sandbox /bin/zsh`
   - 観測: `pwd` が `$container_workdir` と一致
+- `sandbox codex`（AC-021）:
+  - 目的: 典型手順（tmux → sandbox → codex）を 1コマンド化する
+  - 前提: ホスト側で `tmux` が利用できる（EC-006）
+  - tmux セッション名（自動生成 / 決定的）:
+    - `base = basename(CALLER_PWD)`（呼び出し元PWD）
+    - `base` 内の `:` と `.` を `_` に置換する（参考ツール `codex-tmux` と同じ）
+    - `session = "${base}-codex-sandbox"`（`-codex-local` ではなく `-codex-sandbox`）
+  - 既存セッション:
+    - 同名セッションがあれば再利用（attach/switch）する（増殖させない）
+  - セッション内で実行する実処理:
+    - “tmux を作らない内部モード”で `sandbox` を再実行する（例: `SANDBOX_CODEX_NO_TMUX=1`）
+    - 内部モードは `sandbox shell` と同様に `docker compose up -d --build` を行った後、`docker compose exec` を実行する
+  - 引数（重要）:
+    - `sandbox codex [--mount-root <path>] [--workdir <path>] -- [codex args...]`
+    - `--` 以降は codex 引数としてそのまま扱い、sandbox 側で解釈しない（`-h/--help` を含む）
+  - コンテナ内での codex 起動:
+    - `docker compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'codex resume "$@"; exec /bin/zsh' -- <codex args...>`
+    - これにより codex 終了後もコンテナ内 zsh に残れる（手動手順と同等）
 - `sandbox build`（AC-017）:
   - `docker compose build` を実行する（起動/接続は行わない）
 - `sandbox stop`（AC-015）:
@@ -372,7 +398,7 @@
   - `tests/sandbox_name.test.sh`（案）: コンテナ名生成のユニットテスト（slug/hash/長さ）。
   - `tests/sandbox_paths.test.sh`（案）: `mount-root/workdir` 正規化と `container_workdir` 変換のユニットテスト。
   - `tests/sandbox_git_detect.test.sh`（案）: worktree list のパースと LCA 計算（疑似入力でテスト）。
-  - `tests/sandbox_cli.test.sh`（案）: CLI サブコマンド（shell/up/build/stop/down/status/help/name）の分岐と exit code をテスト（docker/compose は stub 化して外部依存を排除）。
+  - `tests/sandbox_cli.test.sh`（案）: CLI サブコマンド（shell/up/build/stop/down/status/help/name/codex）の分岐と exit code をテスト（docker/compose/tmux は stub 化して外部依存を排除）。
 - 変更（Modify）:
   - `Makefile`: 旧 `make start` / `make shell` フローを削除し、起動は `sandbox` に統一する（互換性は持たせない / `.env` 上書き事故を防ぐ）。
   - `README.md`: `sandbox` 起動の導線と、旧 `make start` フローからの移行注意点を追記（要件の“誤解防止”目的）。
@@ -407,9 +433,11 @@
 - AC-018 → IF-CLI-001 / `tests/sandbox_cli.test.sh`（help / -h / --help）
 - AC-019 → IF-CLI-001 / `tests/sandbox_cli.test.sh`（name）
 - AC-020 → IF-CLI-001 / `tests/sandbox_cli.test.sh`（status）
+- AC-021 → IF-CLI-001 / 具体設計(7) / `tests/sandbox_cli.test.sh`（codex: tmux + 内部モード）
 - EC-001 → 具体設計(2)（包含関係チェック）
 - EC-003 → 具体設計(3)（git 取得失敗→明示指定を促す）
 - EC-004 → 具体設計(6)（slug 正規化/長さ制限）
+- EC-006 → 具体設計(7)（`sandbox codex` 実行時の tmux 依存。未導入ならエラー）
 - 非交渉制約（DoD）→ 具体設計(5, IF-ENV-001)（`PRODUCT_WORK_DIR` を “変換基準” として固定し、初期workdirは exec `-w` で制御）
 
 ---
@@ -425,6 +453,7 @@
       - `tests/sandbox_git_detect.test.sh`: worktree list パース→LCA→ガード（AC-001/005/013, EC-003）
       - `tests/sandbox_cli.test.sh`: サブコマンド分岐と idempotent な stop/down、help/name/status（AC-014/015/016/017/018/019/020）
         - 例: `sandbox help --workdir /nope` が exit 0 で help 表示される（ヘルプがパス検証をスキップすることの担保）
+      - `tests/sandbox_cli.test.sh`: `sandbox codex` が tmux を呼び、`--` 以降の引数を codex resume に渡せる（AC-021）
 - 実行コマンド（案）:
   - `bash tests/sandbox_name.test.sh`
   - `bash tests/sandbox_paths.test.sh`

@@ -15,6 +15,7 @@
 - 引数指定なしの場合は、**sandbox 実行時のカレントディレクトリ（呼び出し元PWD）** を初期作業ディレクトリとしつつ、git worktree を含む作業範囲を自動推定してマウントできる。
 - 異なる作業ディレクトリ（およびマウント親）を対象に、複数コンテナを同時に起動・共存できる。
 - 既存の Docker-on-Docker（sandbox コンテナ内からホスト Docker を操作する）運用が継続できる。
+- 典型的な「tmux セッション作成 → sandbox 起動/接続 → codex 起動（resume）」を、`sandbox codex` の 1コマンドで実行できる。
 
 ## 背景・現状（As-Is / 調査メモ） (必須)
 - 現状の挙動（事実）:
@@ -162,11 +163,13 @@
 - 追加の yaml/ Dockerfile をインスタンスごとに生成して保存しない（運用負荷を増やさない）。
 - timezone 検出はベストエフォートとし、外部コマンド失敗があっても CLI を停止させない（失敗時は既定値へフォールバック）。
 - `host/sandbox` は **Python 依存を持たず**、シェルのみでパス正規化を行う（`realpath` が無い環境でも動作する）。
+- `sandbox codex` は **ホスト側 tmux** と **コンテナ内 codex（直接実行）** を使い、コンテナ内の `tmux-codex` など “旧ラッパ” に依存しない（将来的に削除しても動く）。
 
 ## 前提（Assumptions） (必須)
 - ホスト側で `docker` / `docker compose` が利用できる。
 - 対象のディレクトリはローカルファイルシステム上に存在し、ホストから bind mount できる。
 - git worktree は “極端に離れた場所” に配置しない運用が基本である（離れている場合は拒否してよい）。
+- `sandbox codex` を利用する場合、ホスト側で `tmux` が利用できる。
 
 ## 判断材料/トレードオフ（Decision / Trade-offs） (任意)
 - 論点: `mount-root` の自動推定（便利さ） vs 事故防止（安全さ）
@@ -348,6 +351,7 @@
     - 終了コード 0 で終了する
     - `--mount-root` / `--workdir` に無効なパスが混ざっていても、パス検証を行わずにヘルプを表示できる（例: `sandbox help --workdir /nope` でも落ちない）
     - `-h/--help` は引数のどこに現れても最優先で、ヘルプ表示して exit 0（例: `sandbox shell --workdir /nope --help`）
+      - 例外: `sandbox codex` は `--` 以降を codex 引数として扱うため、`--` 以降に出現する `-h/--help` は sandbox 側で解釈しない（codex へ渡す）
     - ホスト側ファイルの生成/更新や、Docker/Compose の操作は行わない（副作用なし）
   - 観測点: Host 出力 / 終了コード
   - 補足:
@@ -397,6 +401,26 @@
   - 補足:
     - `mount-root` 自動推定のガードに引っかかった場合などは、他サブコマンド同様にエラーで停止してよい（exit 0 ではない）
 
+- AC-021: `sandbox codex`（tmux セッション作成 + codex 起動）
+  - Actor/Role: 開発者
+  - Given:
+    - ホスト側で `tmux` が利用できる
+    - 対象の `mount-root/workdir` を決定できる（引数なし/明示指定いずれでも）
+  - When: `sandbox codex [options] -- [codex args...]` を実行する
+  - Then:
+    - tmux セッション名が、呼び出し元PWDの basename から自動生成される（`:` と `.` を `_` に置換する）
+      - 末尾サフィックスは `-codex-sandbox` とする（例: `My.Project` → `My_Project-codex-sandbox`）
+    - 同名の tmux セッションが既に存在する場合は再利用（attach/switch）する（増殖させない）
+    - tmux セッション内で、対象 sandbox を起動/接続し、`codex resume` を起動する
+      - `--` 以降の引数（`codex args`）は `codex resume` にそのまま渡される
+      - `codex args` が空の場合は `codex resume`（引数なし）を実行する
+    - `codex` を終了した後も、コンテナ内のシェル（zsh）に残る（手動手順と同等に「codex後に続けて作業」できる）
+  - 観測点:
+    - Host: tmux セッション一覧（`tmux ls`）でセッション名が期待通り
+    - Container: `codex resume` が起動し、終了後に zsh が利用できること
+  - 補足:
+    - `sandbox codex` では `--` 以降は codex 引数として扱い、sandbox の引数（`--mount-root`/`--workdir`/`-h/--help` など）として解釈しない
+
 ### 入力→出力例 (任意)
 - EX-001: 引数なし（worktree内）
   - Input: `pwd=/path/to/repo/worktrees/feature-a` で起動スクリプト実行
@@ -435,6 +459,11 @@
     - “not-found” と誤判定しない（`status=not-found` は「Docker が利用でき、かつ対象コンテナが存在しない」と確定できた場合のみ）
     - エラー理由と対処（Docker起動/インストール等）が分かるメッセージを出す
     - `sandbox help` / `sandbox name` は Docker を使わないため、Docker 不在でも動作できる
+  - 観測点: Host 出力（stderr など）/ 終了コード
+
+- EC-006: `tmux` が利用できない（`sandbox codex`）
+  - 条件: `sandbox codex` 実行時にホストで `tmux` が見つからない、または実行できない
+  - 期待: エラーで終了し、`tmux` のインストール/起動など対処が分かるメッセージを出す
   - 観測点: Host 出力（stderr など）/ 終了コード
 
 ## 用語（ドメイン語彙） (必須)

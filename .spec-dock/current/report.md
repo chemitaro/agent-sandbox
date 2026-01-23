@@ -43,6 +43,26 @@ rg -n "sandbox status|AC-020" .spec-dock/current/requirement.md .spec-dock/curre
 #### コミット
 - （未実施 / 禁止）
 
+---
+
+### 2026-01-22（JST）
+
+#### 対象
+- 仕様更新（Planning / `sandbox codex` 追加）
+
+#### 実施内容
+- `sandbox codex`（tmux セッション作成 + `codex resume` 起動）を追加要件として仕様化。
+- 追加仕様に合わせて、要件・設計・実装計画を更新（AC-021/EC-006/S17）。
+- 参考ツール: `/Users/iwasawayuuta/workspace/tools/scripts/codex-tmux`（セッション名合成の置換ルールを踏襲しつつ、`-codex-local` → `-codex-sandbox` に変更する方針）。
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md`（AC-021/EC-006、help例外、前提/制約の追記）
+- `.spec-dock/current/design.md`（IF/具体設計/マッピング/テスト戦略の追記）
+- `.spec-dock/current/plan.md`（S17 追加、対象AC/EC/対応表更新）
+
+#### コミット
+- （未実施 / 禁止）
+
 #### メモ
 - 実装/テストはまだ着手しない（設計フェーズ）。
 

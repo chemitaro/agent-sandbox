@@ -14,8 +14,8 @@
 ## この計画で満たす要件ID (必須)
 - 対象AC:
   - AC-001, AC-002, AC-003, AC-004, AC-005, AC-007, AC-008, AC-009, AC-010, AC-011
-  - AC-012, AC-013, AC-014, AC-015, AC-016, AC-017, AC-018, AC-019, AC-020
-- 対象EC: EC-001, EC-002, EC-003, EC-004, EC-005
+  - AC-012, AC-013, AC-014, AC-015, AC-016, AC-017, AC-018, AC-019, AC-020, AC-021
+- 対象EC: EC-001, EC-002, EC-003, EC-004, EC-005, EC-006
 - 非交渉制約（抜粋）:
   - `/srv/mount` 固定（動的モード）
   - `sandbox-<slug>-<hash12>`（hashは `abs_mount_root + "\\n" + abs_workdir` の sha256 先頭12文字）
@@ -52,6 +52,7 @@
 - [ ] S13: DoD 実動の簡易integration検証を行う（手動）
 - [ ] S15: timezone 検出失敗でも CLI が落ちない（best-effort）
 - [ ] S16: Python 依存を撤去し、シェルのみで realpath を実現する
+- [ ] S17: `sandbox codex` が tmux + codex resume を 1コマンドで起動できる
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-018 → S01
@@ -71,6 +72,7 @@
 - OUT OF SCOPE 反映（旧フロー整理） → S12
 - 非交渉制約（timezone best-effort） → S15
 - 非交渉制約（Python 依存を持たない） → S16
+- AC-021 → S17
 
 ---
 
@@ -517,6 +519,53 @@
 - [ ] `report.md` 更新
 - [ ] `update_plan` 更新
 - [ ] コミット（ユーザーが必要なら実施）
+
+---
+
+### S17 — `sandbox codex`（tmux セッション作成 + codex resume 起動）を追加する (必須)
+- 対象: AC-021, EC-006
+- 設計参照:
+  - IF-CLI-001（`sandbox codex`）
+  - 具体設計 7)（`sandbox codex` の tmux/内部モード/`--` ルール）
+- 対象テスト（追加）:
+  - `tests/sandbox_cli.test.sh::codex_outer_uses_tmux_and_session_name`
+  - `tests/sandbox_cli.test.sh::codex_inner_runs_codex_resume_and_returns_to_zsh`
+  - `tests/sandbox_cli.test.sh::codex_help_flag_after_double_dash_is_passed_to_codex`
+  - `tests/sandbox_cli.test.sh::codex_errors_when_tmux_missing`
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Case A（外側: tmux を起動/再利用する）:
+  - Given: ホストで `tmux` が利用できる（スタブでもよい）
+  - When: `sandbox codex` を実行する
+  - Then:
+    - tmux セッション名が `basename(CALLER_PWD)` 由来で、`:` と `.` が `_` に置換され、末尾が `-codex-sandbox` になる
+    - 同名セッションが既に存在する場合は再利用（attach/switch）し、増殖しない
+- Case B（内側: tmux を作らずにコンテナ内で codex を起動する）:
+  - Given: `SANDBOX_CODEX_NO_TMUX=1` が設定されている
+  - When: `sandbox codex [common-options] -- [codex args...]` を実行する
+  - Then:
+    - `docker compose up -d --build` 相当が呼ばれる（shell と同様）
+    - その後の `docker compose exec` が、コンテナ内で `codex resume` を起動する（`tmux-codex` は使わない）
+    - `--` 以降の引数（`codex args`）が `codex resume` にそのまま渡される
+    - `codex` 終了後にコンテナ内 zsh に戻れるように `exec /bin/zsh` が行われる
+- Case C（`--` 以降の `--help` は sandbox が解釈しない）:
+  - Given: `SANDBOX_CODEX_NO_TMUX=1` が設定されている
+  - When: `sandbox codex -- --help` を実行する
+  - Then:
+    - sandbox の help を表示せず、`codex resume --help` として `docker compose exec` が呼ばれる
+- Case D（tmux が無い場合はエラー）:
+  - Given: `tmux` が見つからない
+  - When: `sandbox codex` を実行する
+  - Then: EC-006 に従い、エラーで終了する（exit 0 ではない）
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] テスト成功
+- [ ] `report.md` 更新
+- [ ] `update_plan` 更新
+- [ ] コミット（※`git commit` 禁止のため、必要ならユーザーが実施）
 
 ## 未確定事項（TBD） (必須)
 - 該当なし
