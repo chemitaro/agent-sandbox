@@ -17,3 +17,7 @@
 !.agent-home/.opencode/command/
 !.agent-home/.opencode/plugin/
 .env
+
+# User-managed tools (git-ignored, keep this doc tracked)
+tools/*
+!tools/README.md
