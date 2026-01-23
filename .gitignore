@@ -17,6 +17,3 @@
 !.agent-home/.opencode/command/
 !.agent-home/.opencode/plugin/
 .env
-
-# Auto-generated devcontainer files (template is tracked, generated file is not)
-.devcontainer/devcontainer.json

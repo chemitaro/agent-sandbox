@@ -65,9 +65,13 @@
 - 変更（Modify）:
   - `Makefile`: `install` / `help` のみに整理し、不要変数と古いヘルプを削除
   - `Dockerfile`: tmux エージェント起動用ラッパーコマンド登録を削除
-  - `README.md` / `CLAUDE.md`: tmux エージェント起動の案内を削除（現行 Makefile と整合）
   - `.env.example`: `.env` 運用向けの説明に更新
+  - `.gitignore`: 廃止済みファイル/ディレクトリの ignore を削除
 - 削除（Delete）:
+  - `CHANGELOG.md`: 上流ツールの changelog であり本リポジトリの運用には不要
+  - `CLAUDE.md`: ガイドは一旦削除（後で README を作り直す際に必要なら再作成）
+  - `README.md`: 後で作り直す前提で一旦削除
+  - `.devcontainer/`: VS Code Devcontainer は積極メンテしておらず、現行仕様ともズレがあるため削除
   - `sandbox.config`: 役目を終えたため削除
   - `scripts/tmux-claude`, `scripts/tmux-codex`, `scripts/tmux-opencode`: tmux + エージェント起動の補助（不要方針のため削除）
   - その他、棚卸し結果で確定した未使用ファイル

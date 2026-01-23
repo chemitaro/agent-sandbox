@@ -16,6 +16,7 @@
 - `Makefile` を `install` / `help` のみに整理し、古いヘルプ情報を削除。
 - `.gitignore` から廃止ファイルのエントリを削除。
 - テスト不備を修正し、`tests/*.sh` がすべて成功することを確認。
+- `CHANGELOG.md` / `CLAUDE.md` / `README.md` / `.devcontainer/` を削除（README は後で作り直す前提）。
 
 ## 実装記録（セッションログ） (必須)
 
@@ -137,6 +138,43 @@ for t in tests/*.sh; do bash "$t"; done
 
 #### メモ
 - 該当なし
+
+---
+
+### 2026-01-23 13:12 - 13:57
+
+#### 対象
+- Step: S04
+- AC/EC: AC-003
+
+#### 実施内容
+- `CHANGELOG.md` / `CLAUDE.md` / `README.md` / `.devcontainer/` を削除。
+- `.gitignore` から `.devcontainer` 関連の ignore を削除。
+- テストを再実行して成功を確認。
+
+#### 実行コマンド / 結果
+```bash
+rm CHANGELOG.md CLAUDE.md README.md
+rm -rf .devcontainer
+rg -n "\\bREADME\\.md\\b|\\bCLAUDE\\.md\\b|\\bCHANGELOG\\.md\\b|\\.devcontainer" .
+
+for t in tests/*.sh; do bash "$t"; done
+```
+
+#### 変更したファイル
+- `.gitignore` - `.devcontainer` の ignore を削除
+- `.spec-dock/current/design.md` - 変更計画の更新
+- `.spec-dock/current/plan.md` - S04 を追加
+- `.spec-dock/current/discussions/garbage-files.md` - 削除済み項目を追記
+
+#### 変更・削除したファイル
+- 削除: `CHANGELOG.md`, `CLAUDE.md`, `README.md`, `.devcontainer/`
+
+#### コミット
+- 実施せず（禁止操作のため）
+
+#### メモ
+- `README.md` は後で作り直す前提で一旦削除
 
 ---
 
