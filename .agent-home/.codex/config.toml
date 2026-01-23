@@ -9,7 +9,7 @@ preferred_auth_method = "chatgpt"
 
 model_reasoning_summary = "none"
 
-notify = ["slack-notify"]
+notify = ["/opt/sandbox/tools/codex-notify/run"]
 
 [features]
 web_search_request = true
