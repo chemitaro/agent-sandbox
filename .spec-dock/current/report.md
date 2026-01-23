@@ -15,6 +15,7 @@
 - 未使用ファイルの削除/リネームと `.env.example` の文言更新を実施。
 - `Makefile` を `install` / `help` のみに整理し、古いヘルプ情報を削除。
 - `.gitignore` から廃止ファイルのエントリを削除。
+- テスト不備を修正し、`tests/*.sh` がすべて成功することを確認。
 
 ## 実装記録（セッションログ） (必須)
 
@@ -44,6 +45,10 @@ rm sandbox.config docker-compose.git-ro.yml scripts/generate-git-ro-overrides.sh
 rmdir product
 
 # .env.example / Makefile / .gitignore / spec-dock docs を更新
+
+bash tests/sandbox_cli.test.sh
+# 結果: codex_inner_runs_codex_resume_and_returns_to_zsh で失敗
+# Expected log to contain: exec /bin/zsh
 ```
 
 #### 変更したファイル
@@ -64,7 +69,36 @@ rmdir product
 - 実施せず（禁止操作のため）
 
 #### メモ
-- テストは未実行（必要なら `bash tests/*.sh` を実行）
+- `tests/sandbox_cli.test.sh` が 1 件失敗しているため、後続セッションで修正対応
+
+---
+
+### 2026-01-23 12:27 - 12:43
+
+#### 対象
+- Step: S01, S02
+- AC/EC: AC-003
+
+#### 実施内容
+- `tests/sandbox_cli.test.sh` の失敗原因を調査し、テスト側を修正。
+  - ログは `printf '%q'` により `exec\ /bin/zsh` のようにエスケープされるため、期待値を修正
+  - `--workdir` のように `-` 始まりの期待値が `grep` のオプション扱いにならないよう、`grep ... -- "$expected"` に修正
+- すべてのテストを再実行し、成功を確認。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+for t in tests/*.sh; do bash "$t"; done
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - 期待値と grep の扱いを修正
+
+#### コミット
+- 実施せず（禁止操作のため）
+
+#### メモ
+- 該当なし
 
 ---
 

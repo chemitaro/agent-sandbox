@@ -155,7 +155,7 @@ compute_expected_compose_name() {
 assert_log_contains() {
     local log_file="$1"
     local expected="$2"
-    if ! grep -Fq "$expected" "$log_file"; then
+    if ! grep -Fq -- "$expected" "$log_file"; then
         echo "Expected log to contain: $expected" >&2
         echo "--- log ---" >&2
         cat "$log_file" >&2
@@ -166,7 +166,7 @@ assert_log_contains() {
 assert_log_not_contains() {
     local log_file="$1"
     local expected="$2"
-    if grep -Fq "$expected" "$log_file"; then
+    if grep -Fq -- "$expected" "$log_file"; then
         echo "Expected log to NOT contain: $expected" >&2
         echo "--- log ---" >&2
         cat "$log_file" >&2
@@ -833,7 +833,7 @@ codex_inner_runs_codex_resume_and_returns_to_zsh() {
     assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir"
     assert_log_contains "$log_file" "codex"
     assert_log_contains "$log_file" "resume"
-    assert_log_contains "$log_file" "exec /bin/zsh"
+    assert_log_contains "$log_file" "exec\\ /bin/zsh"
     assert_log_contains "$log_file" "--workdir"
     assert_log_contains "$log_file" "up"
 }
@@ -856,7 +856,7 @@ codex_inner_without_double_dash_uses_default_args() {
     assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir"
     assert_log_contains "$log_file" "codex"
     assert_log_contains "$log_file" "resume"
-    assert_log_contains "$log_file" "exec /bin/zsh"
+    assert_log_contains "$log_file" "exec\\ /bin/zsh"
 }
 
 codex_help_flag_after_double_dash_is_passed_to_codex() {
