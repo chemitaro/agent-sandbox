@@ -627,7 +627,7 @@ build_only() {
 
     run_cmd "$tmp_dir/host/sandbox" build --mount-root "$root" --workdir "$root"
     assert_exit_code 0 "$RUN_CODE"
-    assert_log_contains "$log_file" "CMD=docker compose build"
+    assert_log_contains "$log_file" "CMD=docker compose build --no-cache"
     assert_log_not_contains "$log_file" "CMD=docker compose up"
     assert_log_not_contains "$log_file" "CMD=docker compose exec"
     if [[ ! -f "$tmp_dir/.env" ]]; then
@@ -638,6 +638,39 @@ build_only() {
         echo ".agent-home should be created for build" >&2
         return 1
     fi
+}
+
+build_no_cache() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" build --no-cache --mount-root "$root" --workdir "$root"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose build --no-cache"
+}
+
+build_cache() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" build --cache --mount-root "$root" --workdir "$root"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose build"
+    assert_log_not_contains "$log_file" "CMD=docker compose build --no-cache"
 }
 
 stop_down_idempotent() {
@@ -915,6 +948,8 @@ run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
 run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
 run_test "compose_project_name_is_safe" compose_project_name_is_safe
 run_test "build_only" build_only
+run_test "build_no_cache" build_no_cache
+run_test "build_cache" build_cache
 run_test "stop_down_idempotent" stop_down_idempotent
 run_test "status_output_keys" status_output_keys
 run_test "status_not_found_vs_docker_error" status_not_found_vs_docker_error

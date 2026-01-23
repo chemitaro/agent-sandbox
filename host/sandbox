@@ -267,9 +267,10 @@ run_compose_build() {
     local container_name="$1"
     local compose_project_name="$2"
     local abs_mount_root="$3"
+    shift 3
 
     prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
-    run_compose build
+    run_compose build "$@"
 }
 
 parse_common_args() {
@@ -800,6 +801,8 @@ Usage: sandbox build [options]
 
 Build images only.
 Options:
+  --no-cache           (default) Do not use cache when building the image
+  --cache              Use cache when building the image
   --mount-root <path>
   --workdir <path>
   -h, --help
@@ -1057,6 +1060,18 @@ main() {
 
     if [[ "$subcommand" == "build" ]]; then
         parse_common_args "$@"
+        local use_no_cache=true
+        local arg
+        for arg in "$@"; do
+            case "$arg" in
+                --cache)
+                    use_no_cache=false
+                    ;;
+                --no-cache)
+                    use_no_cache=true
+                    ;;
+            esac
+        done
         if ! determine_paths; then
             exit 1
         fi
@@ -1072,7 +1087,11 @@ main() {
         if ! select_compose_cmd; then
             exit 1
         fi
-        run_compose_build "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        if [[ "$use_no_cache" == true ]]; then
+            run_compose_build "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" --no-cache
+        else
+            run_compose_build "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        fi
         exit $?
     fi
 
