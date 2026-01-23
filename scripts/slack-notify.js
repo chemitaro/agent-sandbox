@@ -15,7 +15,7 @@ const message = process.argv.slice(2).join(' ');
 // エラーチェック
 if (!webhookUrl) {
   console.error('❌ Error: SLACK_WEBHOOK_URL environment variable is not set');
-  console.error('Please set it in your sandbox.config file');
+  console.error('Please set it in your .env file (agent-sandbox repo root)');
   process.exit(1);
 }
 

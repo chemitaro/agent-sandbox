@@ -88,12 +88,12 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 ENV DEVCONTAINER=true
 
 # Set default TMUX_SESSION_NAME for direct docker access
-# This will be overridden by make shell/start commands when accessed from tmux
+# This can be overridden by host-side tooling when accessed from tmux
 ENV TMUX_SESSION_NAME=non-tmux
 
-# Create sandbox and product directories and set permissions
+# Create sandbox and workspace directories and set permissions
 # /opt/sandbox: Internal sandbox tools (isolated from host)
-# /srv/${PRODUCT_NAME}: User workspace (mounted from host)
+# /srv/${PRODUCT_NAME}: Legacy workspace path (container-side). Dynamic mount uses /srv/mount at runtime.
 RUN mkdir -p /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/opencode /home/node/.local/share/opencode /home/node/.cache/opencode /home/node/.config/nvim && \
   chown -R node:node /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config /home/node/.local /home/node/.cache && \
   ln -s /home/node/.codex /home/node/.config/codex || true && \
@@ -227,10 +227,10 @@ CMD ["/bin/zsh"]
 #   Contains sandbox tools, scripts, and configurations
 #   Defined as VOLUME to ensure isolation from host filesystem
 # 
-# - /srv/${PRODUCT_NAME}: Host-mounted directory (changes sync with host)
+# - /srv/mount: Host-mounted directory (changes sync with host)
 #   Should be mounted from host using bind mount in docker-compose.yml:
 #   volumes:
-#     - ${SOURCE_PATH}:/srv/${PRODUCT_NAME}
+#     - ${SOURCE_PATH}:/srv/mount
 #   
 # This ensures sandbox environment modifications stay in container
 # while user workspace changes are preserved on host

@@ -12,7 +12,7 @@ Claude Code is an agentic coding tool that lives in your terminal, understands y
 
 ## Get started
 
-### Option 1: Docker Compose (Recommended for this repository)
+### Option 1: Sandbox CLI (Recommended for this repository)
 
 This repository includes a secure containerized environment for running Claude Code with network restrictions.
 
@@ -22,29 +22,42 @@ git clone https://github.com/chemitaro/agent-sandbox.git [your-project-name]
 cd [your-project-name]
 ```
 
-2. Initialize configuration:
+2. Install the `sandbox` command (optional but recommended):
 ```sh
-make init
-# This will create sandbox.config from sandbox.config.example
+./scripts/install-sandbox.sh
+# This creates /usr/local/bin/sandbox -> <repo>/host/sandbox
+```
+If you prefer not to install it, you can run `./host/sandbox` directly from this repo.
+
+3. (Optional) Create `.env` in the repo root for secrets shared across all sandboxes:
+```sh
+# .env (git-ignored)
+GH_TOKEN=ghp_xxxxxxxxxxxx
+GEMINI_API_KEY=...
+```
+The tool never overwrites `.env`. It injects dynamic values via process env at runtime.
+
+4. Start from any project directory:
+```sh
+# Build, start, and open a shell (default)
+sandbox
+
+# Or explicit subcommands
+sandbox up
+sandbox build
+sandbox stop
+sandbox down
+sandbox status
+sandbox name
 ```
 
-3. Edit `sandbox.config` with your settings:
+**Mount behavior**
+- If no args are given and the directory is a Git worktree, `mount-root` is auto-detected as the LCA of worktrees; `workdir` is the current directory.
+- If no args are given and the directory is not Git-managed, `mount-root = workdir = current directory`.
+- You can override explicitly:
 ```sh
-# Edit sandbox.config to set:
-# SOURCE_PATH = /path/to/your/project (required)
-# PRODUCT_NAME = product (required, change for different projects)
-# GH_TOKEN = ghp_xxxxxxxxxxxx (optional, for private repos)
-# Other optional settings...
-vim sandbox.config  # or your preferred editor
+sandbox shell --mount-root /path/to/repo --workdir /path/to/repo/worktrees/feature-a
 ```
-
-**PRODUCT_NAME Setting**
-`PRODUCT_NAME` in sandbox.config determines the workspace directory:
-- Default value is `product` (creates `/srv/product`)
-- Change it to set the container workspace directory
-- Agent configs and shell history are persisted on the host under `.agent-home/` (git-ignored)
-- Settings are isolated per sandbox repository; for fully separate settings per product, use separate sandbox clones
-- Example: `PRODUCT_NAME = frontend` creates `/srv/frontend` workspace
 
 ### Local agent settings (`.agent-home/`)
 
@@ -58,38 +71,12 @@ Instead, it bind-mounts host-local folders under `.agent-home/`:
 - `.agent-home/.opencode-data` → `/home/node/.local/share/opencode`
 - `.agent-home/commandhistory` → `/commandhistory`
 
-`.agent-home/` is created automatically by `make generate-env` (run implicitly by `make start/build/up/rebuild`).  
+`.agent-home/` is created automatically when you run `sandbox shell/up/build` (and for stop/down only when a matching container exists).  
 On first use, each CLI generates its config into these folders, and subsequent runs reuse them.  
 
 If you are upgrading from an older version, you may have existing Docker volumes
 (`claude-code-config`, `codex-cli-config`, `gemini-cli-config`, `claude-code-bashhistory`);
 copy their contents once into `.agent-home/` before starting the container.
-
-4. Quick start - start container and connect:
-```sh
-make start
-# This will:
-# - Validate configuration
-# - Auto-generate .env and ensure .agent-home folders
-# - Start the container if not running
-# - Connect to /srv/${PRODUCT_NAME} directory (configured in sandbox.config)
-```
-
-Alternatively, manage containers manually:
-```sh
-# Start container
-make up
-
-# Connect to container
-make shell          # Connect to /srv/${PRODUCT_NAME} (configured in sandbox.config)
-make shell-sandbox  # Connect to /opt/sandbox
-
-# Other commands
-make status         # Check container status
-make down           # Stop container
-make restart        # Restart container
-make rebuild        # Rebuild and restart container
-```
 
 5. Run Claude Code:
 ```sh
@@ -99,20 +86,20 @@ claude --dangerously-skip-permissions
 # Or use tmux sessions (from host)
 make tmux-claude my-project      # Start tmux session with Claude
 make tmux-claude-wt feature-xyz  # Start in specific worktree
-make tmux-opencode my-project      # Start tmux session with OpenCode
+make tmux-opencode my-project    # Start tmux session with OpenCode
 make tmux-opencode-wt feature-xyz  # Start in specific worktree
 ```
 
 6. One-command tmux sessions (inside container):
 ```sh
-# Always attach to a unique session in /srv/${PRODUCT_NAME}
+# Always attach to a unique session in /srv/mount
 tmux-claude   # Unique Claude Code session named "claude"
 tmux-codex    # Unique Codex CLI session named "codex"
 tmux-opencode # Unique OpenCode session named "opencode"
 
 # Both commands:
 # - Attach if the session already exists
-# - Otherwise create the session in /srv/${PRODUCT_NAME} and start the tool
+# - Otherwise create the session in /srv/mount and start the tool
 ```
 
 ### Git access inside the container
@@ -121,57 +108,14 @@ tmux-opencode # Unique OpenCode session named "opencode"
 - 変更はコンテナ内で編集し、コミットやプッシュはホスト側のターミナルから実行してください。
 
 ### pre-commit
-開発対象リポジトリで `pre-commit` を使う場合は、フック導入までまとめて実行できます：
-```sh
-make pre-commit-install
-```
+開発対象リポジトリで `pre-commit` を使う場合は、コンテナ内で `pre-commit install` を実行してください。
 
 See [CLAUDE.md](./CLAUDE.md) for detailed usage instructions.
 
 ### VS Code Devcontainer Usage
 
-This repository supports VS Code Devcontainer for a seamless development experience:
-
-1. First, initialize and start the Docker Compose environment:
-```sh
-make init           # Creates sandbox.config and generates .env + .envrc
-vim sandbox.config  # Configure your settings (set PRODUCT_NAME)
-make up             # Start the container
-```
-
-2. Enable direnv for automatic environment loading (recommended):
-```sh
-# Install direnv if not already installed
-# macOS: brew install direnv
-# Ubuntu: apt install direnv
-
-# Allow direnv to load .envrc in this project
-direnv allow
-
-# Now VS Code will automatically have the environment variables
-code .
-```
-
-Or manually load environment:
-```sh
-# macOS/Linux (one-time)
-set -a; source .env; set +a; code .
-
-# Windows PowerShell (one-time)
-Get-Content .env | ForEach-Object {
-  if ($_ -match '^\s*([^#][^=]+)=(.*)') {
-    [Environment]::SetEnvironmentVariable($matches[1], $matches[2], "Process")
-  }
-}; code .
-```
-
-3. When prompted, click "Reopen in Container" or use the Command Palette:
-   - Press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS)
-   - Type "Dev Containers: Reopen in Container"
-
-4. VS Code will attach to the running container with workspace at `/srv/${PRODUCT_NAME}`
-
-**Note:** The `.envrc` file is automatically generated by `make init/generate-env` and loads `.env` variables. With direnv installed and allowed, environment variables are automatically available when you enter the project directory.
+Devcontainer support is not actively maintained for the dynamic mount workflow.
+If you need it, treat it as experimental and prefer the `sandbox` CLI for daily use.
 
 ### Option 2: Global Installation
 
