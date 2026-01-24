@@ -1,253 +1,147 @@
 ---
 種別: 設計書
-機能ID: "<FEATURE_ID>"
-機能名: "<FEATURE_NAME>"
-関連Issue: ["<ISSUE_NUMBER_OR_URL>"]
-状態: "draft | approved"
-作成者: "<YOUR_NAME>"
-最終更新: "YYYY-MM-DD"
+機能ID: "FEAT-CODEX-TRUST-001"
+機能名: "コンテナ内Codexのスキル認識を安定化（複数worktree並行運用）"
+関連Issue: ["N/A"]
+状態: "draft"
+作成者: "Codex CLI"
+最終更新: "2026-01-24"
 依存: ["requirement.md"]
 ---
 
-# <FEATURE_ID> <FEATURE_NAME> — 設計（HOW）
+# FEAT-CODEX-TRUST-001 コンテナ内Codexのスキル認識を安定化（複数worktree並行運用） — 設計（HOW）
 
 ## 目的・制約（要件から転記・圧縮） (必須)
-- 目的: ...
-- MUST: ...
-- MUST NOT: ...
-- 非交渉制約: ...
-- 前提: ...
+- 目的:
+  - `sandbox` 経由で起動した Codex CLI が、各 worktree の `.codex/skills` を安定して認識できるようにする（`@.spec-dock/current/requirement.md`）。
+  - trust が必要な場合は、Codex の標準フロー（信頼の促し→ユーザー承認）で到達できる状態にする。
+- MUST:
+  - 単一コンテナ内で複数 worktree を並行運用しても、どの worktree でも skills を使える（AC-001/002/004）。
+  - `sandbox shell` / `sandbox codex` の導線で再現する問題を解消する（AC-001/002/004）。
+  - `sandbox` 自身は Codex 設定（`$CODEX_HOME/config.toml`）を直接編集しない（AC-003）。
+- MUST NOT:
+  - 外部ツールが `config.toml` を機械編集して `[projects]` を追記しない（MUST NOT）。
+  - `--config` 等の runtime overrides を外部から注入しない（MUST NOT）。
+  - `/etc/codex/config.toml` 等の system config をこのツールが導入して挙動を固定しない（MUST NOT）。
+- 非交渉制約:
+  - `sandbox` CLI 互換を維持（既存の使い方を壊さない）。
+  - テストは実 Docker に依存せず、既存の stubs/helpers で determinism を保つ。
+- 前提:
+  - trust 促しでのユーザー手動承認は許容（Q-003）。
 
 ---
 
 ## 既存実装/規約の調査結果（As-Is / 95%理解） (必須)
-- 参照した規約/実装（根拠）:
-  - `<path/to/doc_or_agents>`: <見た理由 / 採用するルール>
-  - `<path/to/file>`: <見た理由 / 仕様を決めている箇所（関数/クラス/行番号）>
-- 観測した現状（事実）:
-  - ...
-- 採用するパターン（命名/責務/例外/DI/テストなど）:
-  - ...
-- 採用しない/変更しない（理由）:
-  - ...
-- 影響範囲（呼び出し元/関連コンポーネント）:
-  - ...
+### リポジトリ側（sandbox）
+- `host/sandbox`
+  - `sandbox shell`: `docker compose exec -w <container_workdir> agent-sandbox /bin/zsh`
+  - `sandbox codex`: `docker compose exec -w <container_workdir> agent-sandbox /bin/zsh -lc 'codex resume ...; exec /bin/zsh'`
+  - 現状、`config.toml`（`$CODEX_HOME/config.toml`）を作成・編集するロジックは存在しない（検索で確認）。
+- `docker-compose.yml`
+  - ホスト側 `.agent-home/.codex` をコンテナ `/home/node/.codex` にマウントしている（Codex が自分で設定を永続化できる前提）。
+  - ホスト側の `SOURCE_PATH` をコンテナ `/srv/mount` にマウントしている。
+- `tests/sandbox_cli.test.sh`
+  - stubs により docker compose の実行コマンド列をログに残し、そこで振る舞いを観測している。
+  - ただし `shell_trusts_git_repo_root_for_codex()` が「sandbox が `config.toml` を作って trust を追記する」前提になっており、AC-003 と矛盾している（更新が必要）。
 
-## 主要フロー（テキスト：AC単位で短く） (任意)
-- Flow for AC-001:
-  1) ...
-  2) ...
-  3) ...
-- Flow for AC-002:
-  1) ...
-  2) ...
-  3) ...
-
-## データ・バリデーション（必要最小限） (任意)
-- MODEL-001: <Entity/DTO/Table名>
-  - Fields: ...
-  - Constraints/Validation: ...
-- ...
-
-## 判断材料/トレードオフ（Decision / Trade-offs） (任意)
-- 論点: ...
-  - 選択肢A: ...（Pros/Cons）
-  - 選択肢B: ...（Pros/Cons）
-  - 決定: ...
-  - 理由: ...
-
-## インターフェース契約（ここで固定） (任意)
-### API（ある場合）
-- API-001: `<METHOD> <PATH>`
-  - Request: ...
-  - Response: ...
-  - Errors: ...
-
-### 関数・クラス境界（重要なものだけ）
-- IF-001: `<module>::<function/class signature>`
-  - Input: ...
-  - Output: ...
-  - Errors/Exceptions: ...
-
-## 変更計画（ファイルパス単位） (必須)
-- 追加（Add）:
-  - `<path/to/new_file>`: <役割 / 責務>
-- 変更（Modify）:
-  - `<path/to/existing_file>`: <何をどう変えるか>
-- 削除（Delete）:
-  - `<path/to/obsolete_file>`: <なぜ削除するか>
-- 移動/リネーム（Move/Rename）:
-  - `<from>` → `<to>`: <目的>
-- 参照（Read only / context）:
-  - `<path/to/reference_file>`: <読む理由>
-
-## マッピング（要件 → 設計） (必須)
-- AC-001 → API-001, IF-001, `<path/...>`
-- EC-001 → `<path/...>`（エラー処理の場所）
-- 非交渉制約 → どの設計で満たすか（例: キャッシュ、冪等、監査ログなど）
-
-## テスト戦略（最低限ここまで具体化） (任意)
-- 追加/更新するテスト:
-  - Unit: ...
-  - Integration: ...
-  - Frontend: ...
-- どのAC/ECをどのテストで保証するか:
-  - AC-001 → `<test_file_path>::<test_name>`
-  - EC-001 → ...
-- 非交渉制約（requirement.md）をどう検証するか:
-  - 制約: ...
-    - 検証方法（テスト/計測点/ログ/運用確認など）: ...
-- 実行コマンド（該当するものを記載）:
-  - ...
-- 変更後の運用（必要なら）:
-  - 移行手順: ...
-  - ロールバック: ...
-  - Feature flag: ...
-
-## リスク/懸念（Risks） (任意)
-- R-001: <リスク>（影響: ... / 対応: ...）
-- R-002: ...
-
-## 未確定事項（TBD） (必須)
-- Q-001:
-  - 質問: TBD ...
-  - 選択肢:
-    - A: ...
-    - B: ...
-  - 推奨案（暫定）: ...
-  - 影響範囲: AC-___ / API-___ / IF-___ / `<path/...>` / テスト / ...
-- Q-002:
-  - 質問: TBD ...
-  - 選択肢:
-    - A: ...
-    - B: ...
-  - 推奨案（暫定）: ...
-  - 影響範囲: ...
+### Codex 側（公式ドキュメント＋一次情報）
+- Team Config の探索ルート（公式）:
+  - `.codex/` は `$CWD/.codex/` → 親 → `$REPO_ROOT/.codex/` → `$CODEX_HOME` → `/etc/codex/` の順でロードされ得る（`https://developers.openai.com/codex/team-config`）。
+- trust 設定（公式）:
+  - `projects.<path>.trust_level` で、プロジェクト（worktree）を `"trusted"` / `"untrusted"` としてマークできる（`https://developers.openai.com/codex/config-reference`）。
+  - 例（サンプル）: `[projects."/absolute/path/to/project"] trust_level = "trusted"  # or "untrusted"`（`https://developers.openai.com/codex/config-sample`）。
+- trust の標準導線（公式）:
+  - Codex は起動時に、設定に応じて「working directory を trust する」必要があり、onboarding prompt または `/approvals` を例として挙げている（`https://developers.openai.com/codex/security`）。
+  - 上流 OSS では trust directory prompt の存在や、承認結果を `config.toml` に追記する挙動が報告されている（例: `https://github.com/openai/codex/issues/4940`, `https://github.com/openai/codex/issues/5160`）。
+- 作業ディレクトリの指定（公式 CLI）:
+  - `--cd, -C <path>` が「開始前に作業ディレクトリを設定する」グローバルフラグとして提供される（`https://developers.openai.com/codex/cli/reference`）。
+  - グローバルフラグはサブコマンドの **後ろ**に置く（例: `codex exec --oss ...`）。同様に `codex resume --cd <path>` の形で指定できる（`https://developers.openai.com/codex/cli/reference`）。
+  - `codex resume` は global flags を受け取り、`--last` は cwd にスコープし、必要なら `--all` で cwd 外を含められる（`https://developers.openai.com/codex/cli/reference`）。
+- skills のロードタイミング（公式）:
+  - Codex は startup 時に skills の名前/説明をロードし、追加・変更後は restart が必要（`https://developers.openai.com/codex/skills`）。
+  - 参考メモ: `@.spec-dock/current/discussions/codex_trust_standard_operation.md`
 
 ---
 
-## ディレクトリ/ファイル構成図（変更点の見取り図） (任意)
-```text
-<repo-root>/
-├── <bounded-context-or-module>/
-│   └── <subdir>/
-│       ├── <path/to/new_file>        # Add
-│       ├── <path/to/existing_file>   # Modify
-│       ├── <path/to/obsolete_file>   # Delete
-│       ├── <from>                    # Move/Rename (from)
-│       └── <to>                      # Move/Rename (to)
-```
+## 設計方針（To-Be） (必須)
+- 方針A（要件で合意済み）: repo/worktree 単位で trust を扱い、Codex 標準フロー（信頼の促し→ユーザー承認）で `projects.<path>.trust_level` が更新される前提で動かす。
+- sandbox の責務:
+  - Codex が trust 判定/skills 探索に使う **作業ディレクトリを確実に “今の worktree” に揃える**。
+  - `config.toml` は **編集しない**（AC-003）。
 
-## UML図（PlantUML） (任意)
-### コンポーネント図（境界/責務/依存の俯瞰）
-```plantuml
-@startuml
-actor User
-component "Web UI" as FE
-component "Backend API" as API
-database "DB" as DB
-cloud "External" as Ext
+---
 
-User --> FE
-FE --> API : HTTP
-API --> DB : SQL
-API --> Ext : call
-@enduml
-```
+## 判断材料/トレードオフ（Decision / Trade-offs） (任意)
+- 論点: `sandbox codex` が Codex に渡す “作業ディレクトリ” をどこまで確実にできるか（skills/trust の安定性に直結）
+  - A: docker compose exec の `-w` のみに依存（現状）
+    - Pros: シンプル
+    - Cons: `codex resume` が再開するセッション側で作業ディレクトリを保持する仕様の場合、skills/trust が “前回のディレクトリ” 基準になる可能性が残る
+  - B: Codex の公式フラグ `--cd` を必ず指定して、Codex 側の作業ディレクトリを確実に container_workdir に合わせる（採用）
+    - Pros: 公式インターフェースでディレクトリ基準を固定でき、skills/trust が安定する
+    - Cons: `--cd` 非対応の古い Codex への互換性配慮が必要
+- 決定: B
 
-### シーケンス図（時系列・IFのやり取り）
-```plantuml
-@startuml
-actor User
-participant "Web UI" as FE
-participant "Backend API" as API
-database "DB" as DB
+---
 
-User -> FE : 操作
-FE -> API : POST /...
-API -> DB : write
-API --> FE : 200 OK
-@enduml
-```
+## インターフェース契約（ここで固定） (任意)
+- IF-001: `host/sandbox::run_compose_exec_codex(container_workdir, container_name, compose_project_name, abs_mount_root, ...codex_args)`
+  - 変更点:
+    - `codex resume` 呼び出しに `--cd .`（または同等）を追加する
+    - `codex_args` は従来通り `sandbox codex -- [codex args...]` で渡されたものを後ろに連結する
 
-### クラス図（主要ドメイン概念・責務）
-```plantuml
-@startuml
-class AggregateRoot
-class Entity
-class ValueObject
-AggregateRoot "1" o-- "*" Entity : contains
-AggregateRoot "1" o-- "*" ValueObject : owns
-@enduml
-```
+---
 
-### アクティビティ図（主要フロー）
-```plantuml
-@startuml
-start
-:入力検証;
-if (OK?) then (yes)
-  :ユースケース実行;
-  :永続化/外部連携;
-  :成功応答;
-  stop
-else (no)
-  :エラー応答;
-  stop
-endif
-@enduml
-```
+## 変更計画（ファイルパス単位） (必須)
+- 変更（Modify）:
+  - `host/sandbox`
+    - `run_compose_exec_codex`: `codex resume` 呼び出しに `--cd .` を追加し、Codex の作業ディレクトリを確実に container_workdir に揃える
+    - `print_help` / `print_help_codex`: trust は Codex の標準フローに委ねる旨を短く補足（必要なら）
+  - `tests/sandbox_cli.test.sh`
+    - `shell_trusts_git_repo_root_for_codex`: 削除または否定テストへ変更（`.agent-home/.codex/config.toml` を作成しないこと = AC-003）
+    - `codex_inner_runs_codex_resume_and_returns_to_zsh` / `codex_inner_without_double_dash_uses_default_args`: `--cd` が含まれることを観測点として追加
+- 参照（Read only / context）:
+  - `docker-compose.yml`: `.agent-home/.codex` の永続化（Codex 自身が trust を永続化する前提）
+  - `@.spec-dock/current/requirement.md`: AC/EC/MUST NOT の根拠
 
-### 状態マシン図（状態を持つドメインがある場合）
-```plantuml
-@startuml
-[*] --> Draft
-Draft --> Active : 確定
-Active --> Archived : 完了
-Archived --> [*]
-@enduml
-```
+---
 
-### 配置図（デプロイ/ノード構成）
-```plantuml
-@startuml
-node "Client" as Client
-node "App Server" as App
-database "DB" as DB
+## マッピング（要件 → 設計） (必須)
+- AC-001 → `sandbox codex` 起動で `--cd` を付与し、worktree 配下の `.codex/skills` 探索が安定する
+- AC-002 → `--cd` により trust 判定の基準ディレクトリを worktree に揃え、Codex 標準フローで trust 登録 → skills 認識へ到達
+- AC-003 → `sandbox` は `config.toml` を直接編集しない（テストで担保）
+- AC-004 → AC-002 と同様（新規 worktree でも trust 導線で到達）
+- EC-001 → `/srv/mount` 一括 trust を行わず、混在を前提に worktree/repo 単位 trust を Codex に委ねる
+- EC-002 → sandbox 側は `/srv/mount` を書き換えないため影響最小（必要ならエラーメッセージ整備）
 
-Client --> App
-App --> DB
-@enduml
-```
+---
 
-### ユースケース図（機能境界とアクター）
-```plantuml
-@startuml
-left to right direction
-actor User
-rectangle System {
-  usecase "機能A" as UC1
-  usecase "機能B" as UC2
-}
-User --> UC1
-User --> UC2
-@enduml
-```
+## テスト戦略（最低限ここまで具体化） (任意)
+- 更新するテスト（Bash, 既存 stubs 使用）:
+  - `tests/sandbox_cli.test.sh::codex_inner_runs_codex_resume_and_returns_to_zsh`
+    - Then: docker compose exec のコマンド列に `--cd` が含まれる（例: `codex resume --cd .`）
+  - `tests/sandbox_cli.test.sh::codex_inner_without_double_dash_uses_default_args`
+    - Then: `--cd` を含む `codex resume` が実行される
+  - `tests/sandbox_cli.test.sh`（新規または既存修正）
+    - Then: `sandbox shell` / `sandbox codex` 実行後も `.agent-home/.codex/config.toml` を作成していない（AC-003）
+- 実行コマンド:
+  - `bash tests/sandbox_cli.test.sh`
 
-### ER図（テーブル関係）
-```plantuml
-@startuml
-entity Tenant {
-  * id : uuid <<PK>>
-}
-entity LeaseContract {
-  * id : uuid <<PK>>
-  --
-  tenant_id : uuid <<FK>>
-}
-Tenant ||--o{ LeaseContract
-@enduml
-```
+---
+
+## リスク/懸念（Risks） (任意)
+- R-001: Codex バージョン差で `--cd` が存在しない場合（影響: 起動失敗）
+  - 対応案:
+    - `codex --help` 等でサポート有無を判定してフォールバック（要検討）
+    - もしくは README/ヘルプに最小バージョンを明記（要検討）
+- R-002: trust エントリの増殖（影響: config 肥大化）
+  - 対応: 本タスクでは “Codex の正規挙動として増える” ことは許容。sandbox 側は workdir の正規化（realpath）を維持する。
+
+---
+
+## 未確定事項（TBD） (必須)
+- 該当なし
+
+---
 
 ## 省略/例外メモ (必須)
 - 該当なし

@@ -45,14 +45,58 @@ sed / ls / rg / nl / date 等で `.spec-dock/current/*.md` を確認し、要件
 
 ---
 
-### YYYY-MM-DD HH:MM - HH:MM
+### 2026-01-24 18:10 - 18:57
 
 #### 対象
-- Step: ...
-- AC/EC: ...
+- Planning: 設計（調査 → 設計書作成）
+- AC/EC: AC-001..AC-004, EC-001..EC-002
 
 #### 実施内容
-- ...
+- Codex 公式ドキュメント（CLI/config/team-config/config-sample）と OSS 一次情報（config_loader）から、trust/skills の前提を再確認
+- `design.md` を作成し、設計方針（Codex 標準フロー + `--cd` で作業ディレクトリ固定）と変更計画/テスト戦略を具体化
+- 設計上の追加ヒアリング（Q-DES-001）を起票
+
+#### 実行コマンド / 結果
+```bash
+web.run（公式ドキュメント参照）
+rg / sed / nl で repo 内の現状を確認し、`.spec-dock/current/design.md` を更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 設計（HOW）を作成
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+#### メモ
+- `tests/sandbox_cli.test.sh` に「sandbox が Codex config を作成する」前提のテストがあるため、AC-003 と整合する形へ修正が必要
+
+---
+
+### 2026-01-24 19:15 - 19:25
+
+#### 対象
+- Planning: 設計（追加調査 → 設計前提の補強）
+- トピック: Codex の trust 標準操作 / trust 後の skills 反映（再起動要否）
+
+#### 実施内容
+- Codex 公式ドキュメントから trust 設定（`projects.<path>.trust_level`）、trust 導線（onboarding prompt / `/approvals`）、skills のロード/再起動要件を再確認
+- 上流 OSS（GitHub issue）から「Codex が実行時に `config.toml` を更新する」報告を根拠として追加
+- 調査メモを discussion シート化し、`design.md` の As-Is 前提に追記
+
+#### 実行コマンド / 結果
+```bash
+web.run（公式ドキュメント / 上流 issue 参照）
+```
+
+#### 変更したファイル
+- `.spec-dock/current/discussions/codex_trust_standard_operation.md` - trust 標準操作と再起動要否の一次情報メモ
+- `.spec-dock/current/design.md` - As-Is の前提に上流挙動根拠（issue）と参照メモを追記
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
 
 ---
 
