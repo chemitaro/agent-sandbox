@@ -180,6 +180,31 @@ cat / sed / rg で既存テスト・実装を確認し、apply_patch で `plan.m
 
 ---
 
+### 2026-01-24 21:45 - 22:00
+
+#### 対象
+- Planning: 実装計画（レビュー反映）
+
+#### 実施内容
+- plan レビュー指摘を反映
+  - S04 をテンプレ構造（update_plan / 期待する振る舞い / ステップ末尾）で書き切り
+  - AC-003 の担保として、`sandbox codex` 側の「config.toml を書き換えない」テスト追加を計画（S01）
+  - proxy + 手動受け入れ前提を DoD に反映し、手動受け入れ（S05）を計画に追加
+
+#### 実行コマンド / 結果
+```bash
+nl / sed で `.spec-dock/current/plan.md` を確認し、apply_patch で修正
+```
+
+#### 変更したファイル
+- `.spec-dock/current/plan.md` - S04 完成、S01 の対象拡張（shell+codex）、S05 追加、DoD 更新
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
 ## 遭遇した問題と解決 (任意)
 - 問題: ...
   - 解決: ...
