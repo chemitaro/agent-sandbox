@@ -84,13 +84,6 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
   && touch /commandhistory/.bash_history \
   && chown -R $USERNAME /commandhistory
 
-# Set `DEVCONTAINER` environment variable to help with orientation
-ENV DEVCONTAINER=true
-
-# Set default TMUX_SESSION_NAME for direct docker access
-# This can be overridden by host-side tooling when accessed from tmux
-ENV TMUX_SESSION_NAME=non-tmux
-
 # Create sandbox and workspace directories and set permissions
 # /opt/sandbox: Internal sandbox tools (isolated from host)
 # /srv/${PRODUCT_NAME}: Legacy workspace path (container-side). Dynamic mount uses /srv/mount at runtime.
@@ -187,10 +180,6 @@ RUN chmod +x /usr/local/bin/init-firewall.sh /usr/local/bin/docker-entrypoint.sh
 COPY scripts/slack-notify.js /opt/sandbox/scripts/
 RUN chmod +x /opt/sandbox/scripts/slack-notify.js && \
     ln -s /opt/sandbox/scripts/slack-notify.js /usr/local/bin/slack-notify
-
-# Set up Docker environment
-ENV DOCKER_CONFIG=/home/node/.docker
-ENV DOCKER_HOST=unix:///var/run/docker.sock
 
 # Create Docker config directory for node user
 RUN mkdir -p /home/node/.docker && \

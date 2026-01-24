@@ -539,6 +539,10 @@ config_env_var_noise_is_not_present() {
         "ENV OPENCODE_CONFIG_DIR="
         "ENV OPENCODE_DATA_DIR="
         "ENV OPENCODE_CACHE_DIR="
+        "ENV DEVCONTAINER="
+        "ENV TMUX_SESSION_NAME="
+        "ENV DOCKER_CONFIG="
+        "ENV DOCKER_HOST="
     )
 
     local compose_tokens=(
@@ -621,6 +625,51 @@ shell_injects_dod_env_vars() {
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "HOST_SANDBOX_PATH=$(realpath "$tmp_dir")"
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "HOST_USERNAME=$(whoami)"
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "PRODUCT_NAME=mount"
+}
+
+shell_trusts_git_repo_root_for_codex() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/mount-root"
+    local repo_root="$root/repo"
+    local workdir="$repo_root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    cat > "$COMPOSE_STUB_DIR/git" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-C" && "${3:-}" == "rev-parse" && "${4:-}" == "--show-toplevel" ]]; then
+    printf '%s\n' "${STUB_GIT_TOPLEVEL:?}"
+    exit 0
+fi
+
+exit 1
+STUB
+    chmod +x "$COMPOSE_STUB_DIR/git"
+    export STUB_GIT_TOPLEVEL="$repo_root"
+    hash -r
+
+    run_cmd "$tmp_dir/host/sandbox" shell --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/repo/subdir agent-sandbox /bin/zsh"
+
+    local codex_config="$tmp_dir/.agent-home/.codex/config.toml"
+    if [[ ! -f "$codex_config" ]]; then
+        echo "Expected Codex config.toml to be created: $codex_config" >&2
+        return 1
+    fi
+    if ! grep -Fq '"/srv/mount/repo"' "$codex_config"; then
+        echo "Expected Codex config.toml to trust repo root: /srv/mount/repo" >&2
+        echo "--- config.toml ---" >&2
+        cat "$codex_config" >&2
+        return 1
+    fi
 }
 
 default_shell_ignores_option_value() {
@@ -1051,6 +1100,7 @@ run_test "tz_injection_rules" tz_injection_rules
 run_test "config_env_var_noise_is_not_present" config_env_var_noise_is_not_present
 run_test "shell_exec_w" shell_exec_w
 run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
+run_test "shell_trusts_git_repo_root_for_codex" shell_trusts_git_repo_root_for_codex
 run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
 run_test "compose_project_name_is_safe" compose_project_name_is_safe
 run_test "build_only" build_only
