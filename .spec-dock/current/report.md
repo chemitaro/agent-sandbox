@@ -155,6 +155,31 @@ sed で確認し、apply_patch で更新
 
 ---
 
+### 2026-01-24 21:30 - 21:45
+
+#### 対象
+- Planning: 実装計画（TDD plan）作成
+
+#### 実施内容
+- 設計承認を反映し、`design.md` の状態を `approved` に更新
+- `plan.md` を TDD（Red→Green→Refactor）前提のステップ分割で作成（S01〜S03 + 任意S04）
+- コミット禁止（この環境の制約）を plan の「省略/例外メモ」に明記
+
+#### 実行コマンド / 結果
+```bash
+cat / sed / rg で既存テスト・実装を確認し、apply_patch で `plan.md` を作成
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 状態を `approved` に更新
+- `.spec-dock/current/plan.md` - 実装計画書を作成
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
 ## 遭遇した問題と解決 (任意)
 - 問題: ...
   - 解決: ...
