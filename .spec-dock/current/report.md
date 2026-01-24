@@ -1,46 +1,47 @@
 ---
 種別: 実装報告書
-機能ID: "<FEATURE_ID>"
-機能名: "<FEATURE_NAME>"
-関連Issue: ["<ISSUE_NUMBER_OR_URL>"]
-状態: "draft | approved"
-作成者: "<YOUR_NAME>"
-最終更新: "YYYY-MM-DD"
+機能ID: "FEAT-CODEX-TRUST-001"
+機能名: "コンテナ内Codexのスキル認識を安定化（複数worktree並行運用）"
+関連Issue: ["N/A"]
+状態: "draft"
+作成者: "Codex CLI"
+最終更新: "2026-01-24"
 依存: ["requirement.md", "design.md", "plan.md"]
 ---
 
-# <FEATURE_ID> <FEATURE_NAME> — 実装報告（LOG）
+# FEAT-CODEX-TRUST-001 コンテナ内Codexのスキル認識を安定化（複数worktree並行運用） — 実装報告（LOG）
 
 ## 実装サマリー (任意)
 - [実装した内容の概要を2-3文で記載]
 
 ## 実装記録（セッションログ） (必須)
 
-### YYYY-MM-DD HH:MM - HH:MM
+### 2026-01-24 18:00 - 18:10
 
 #### 対象
-- Step: S01, S02, ...
-- AC/EC: AC-___, EC-___
+- Planning: 要件定義の更新
+- AC/EC: AC-001..AC-004, EC-001..EC-002
 
 #### 実施内容
-- ...
+- spec-dock ガイドと既存ドキュメントを確認
+- Q-003（trust 促しでの手動承認は許容）を反映し、`requirement.md` を整備
+- Q-003 用の discussion シートを追加
 
 #### 実行コマンド / 結果
 ```bash
-<command>
-
-<result>
+sed / ls / rg / nl / date 等で `.spec-dock/current/*.md` を確認し、要件を更新
 ```
 
 #### 変更したファイル
-- `path/to/file1` - ...
-- `path/to/file2` - ...
+- `.spec-dock/current/requirement.md` - Q-003反映、AC整理、前提/観測点/リスクの調整
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+- `.spec-dock/current/discussions/q003_codex_trust_prompt_allow.md` - Q-003 の議事録を追加
 
 #### コミット
-- <hash> <message>
+- 該当なし（Planning Phase）
 
 #### メモ
-- ...
+- `@.spec-dock/current/discussions/qa-with-gpt52pro.md` は参照用の資料として `requirement.md` に記録済み
 
 ---
 
