@@ -1,0 +1,40 @@
+# 設計レビュー（反映メモ）— 2026-01-24
+
+対象: `@.spec-dock/current/design.md` / `@.spec-dock/current/requirement.md`  
+機能: FEAT-CODEX-TRUST-001
+
+## 総評（レビュアー）
+- 方針A + `codex resume --cd` で作業ディレクトリ固定、trust は Codex 標準フローに委ねるのは妥当（MUST NOT/AC-003 と整合、変更範囲も小さい）
+
+## 指摘と対応
+### 指摘1（観測点）
+- 指摘: AC-001/002/004 の「skills が認識される」を自動テストでどう観測するか未固定
+- 対応:
+  - 自動テストは `--cd` 付与を proxy（観測点）として採用することを `design.md` に明記
+  - 受け入れを完結させるため、手動確認手順（trust 承認 / 必要なら再起動）を `design.md` に追記
+
+### 指摘2（sandbox shell）
+- 指摘: 変更が `sandbox codex` 中心のため、`sandbox shell` の再現解消の説明が薄い
+- 対応:
+  - `sandbox shell` では `pwd` で worktree を確認しつつ、`codex resume --cd .` を推奨する運用（手順/ヘルプで明文化）を `design.md` に追記
+
+### 指摘3（`--cd` 重複）
+- 指摘: ユーザーが `sandbox codex -- --cd ...` を渡すと二重指定になり得る
+- 対応（決定）:
+  - ユーザーが `--cd`/`-C` を指定している場合、sandbox は `--cd` を付与しない（重複回避・ユーザー指定優先）
+  - IF-001 に明記
+
+### 指摘4（TBD整合）
+- 指摘: `report.md` に「Q-DES-001 起票」とあるが、`design.md` の TBD が「該当なし」
+- 対応:
+  - `report.md` の当該記述は「後続で不要となりクローズ」を追記して整合を取る（履歴は残す）
+
+### テスト（既存と矛盾）
+- 指摘: `tests/sandbox_cli.test.sh:shell_trusts_git_repo_root_for_codex` が現実装/要件（AC-003）と矛盾
+- 対応方針:
+  - 設計通り「削除または否定テスト化（config.toml を作らない）」へ変更する（実装フェーズで対応）
+
+## 確認事項（レビュアー質問）への回答（設計上の決定）
+- `--cd` 取り扱い: **B**（ユーザー指定があれば sandbox は付与しない）
+- Codex バージョン前提: **B**（`--cd` 利用可能な Codex を前提として明記）
+- 受け入れの観測: **A**（自動テストは `--cd` 付与を proxy、実機手順を残す）

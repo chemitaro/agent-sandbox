@@ -54,7 +54,7 @@ sed / ls / rg / nl / date 等で `.spec-dock/current/*.md` を確認し、要件
 #### 実施内容
 - Codex 公式ドキュメント（CLI/config/team-config/config-sample）と OSS 一次情報（config_loader）から、trust/skills の前提を再確認
 - `design.md` を作成し、設計方針（Codex 標準フロー + `--cd` で作業ディレクトリ固定）と変更計画/テスト戦略を具体化
-- 設計上の追加ヒアリング（Q-DES-001）を起票
+- 設計上の追加ヒアリング（Q-DES-001）を起票（後続で不要となりクローズ）
 
 #### 実行コマンド / 結果
 ```bash
@@ -97,6 +97,36 @@ web.run（公式ドキュメント / 上流 issue 参照）
 
 #### コミット
 - 該当なし（Planning Phase）
+
+---
+
+### 2026-01-24 21:12 - 21:25
+
+#### 対象
+- Planning: 設計レビュー反映（ドキュメント修正）
+
+#### 実施内容
+- レビュアー指摘（観測点 / sandbox shell / `--cd` 重複 / report の整合）を反映
+- 受け入れ観測は「自動テストは `--cd` を proxy」「手動確認手順を残す」として固定
+- IF-001 に `--cd` 重複時の優先順位（ユーザー指定優先）を明記
+- `requirement.md` の観測点を、proxy + 手動確認へ具体化
+
+#### 実行コマンド / 結果
+```bash
+sed / nl で対象mdを確認し、apply_patch で更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 観測点/手動確認/`--cd` 重複時の扱い/sandbox shell の期待運用を追記
+- `.spec-dock/current/requirement.md` - 観測点を proxy + 手動確認へ具体化、状態を `approved` に更新
+- `.spec-dock/current/discussions/design-review-20260124.md` - レビュー指摘と対応/決定のメモを追加
+- `.spec-dock/current/report.md` - 本セッションの記録を追記、Q-DES-001 の整合を修正
+
+#### コミット
+- 該当なし（Planning Phase）
+
+#### メモ
+- テスト修正（`tests/sandbox_cli.test.sh:shell_trusts_git_repo_root_for_codex`）は実装フェーズで対応
 
 ---
 

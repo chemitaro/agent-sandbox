@@ -3,7 +3,7 @@
 機能ID: "FEAT-CODEX-TRUST-001"
 機能名: "コンテナ内Codexのスキル認識を安定化（複数worktree並行運用）"
 関連Issue: ["N/A"]
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI"
 最終更新: "2026-01-24"
 ---
@@ -98,25 +98,32 @@
   - Given: `sandbox shell` でコンテナに入り、作業ディレクトリが `/srv/mount/<repo_or_worktree>` 配下になっている
   - When: その worktree で Codex CLI を起動する
   - Then: その worktree の `.codex/skills` が認識され、プロジェクト固有 skills を利用できる
-  - 観測点（UI/Log など）: 実装で観測方法を固定する（例: skills 一覧の表示/ログ/専用サブコマンド等）
+  - 観測点（UI/Log など）:
+    - 手動: worktree の `.codex/skills` にある既知の skill が「利用可能」として扱われ、実際に利用できる（手順は `@.spec-dock/current/design.md` に記載）
+    - 自動テスト（proxy）: `sandbox codex` が `codex resume --cd .` を実行している（作業ディレクトリ固定の担保）
 - AC-002:
   - Actor/Role: 開発者
   - Given: 同一コンテナ内に複数 worktree が存在する
   - When: いずれの worktree からでも Codex CLI を起動する
   - Then: trust が未登録の worktree でも、Codex の標準フロー（信頼の促し→ユーザー承認）により trust を登録でき、AC-001 の状態へ到達できる
-  - 観測点: 実装で観測方法を固定する（例: trust 促しの表示、承認後に skills が見える、など）
+  - 観測点:
+    - 手動: trust 促し→承認ができ、必要なら Codex を再起動して skills が見える（`@.spec-dock/current/discussions/codex_trust_standard_operation.md`）
+    - 自動テスト（proxy）: `--cd` 付与、および `sandbox` が `config.toml` を編集しない（AC-003）
 - AC-003:
   - Actor/Role: 開発者
   - Given: `sandbox` を利用する（`sandbox shell` / `sandbox codex`）
   - When: `sandbox` 経由で Codex を起動する
   - Then: `sandbox` 自身は Codex の設定ファイル（`config.toml`）を直接編集しない（trust 更新は Codex の標準機構に委ねる）
-  - 観測点: 実装で観測方法を固定する（例: テストでファイル書き換えを行っていないことを検証）
+  - 観測点:
+    - 自動テスト: `sandbox shell` / `sandbox codex` 実行後も `.agent-home/.codex/config.toml` を作成/編集していない
 - AC-004:
   - Actor/Role: 開発者
   - Given: コンテナ内で新しい worktree を作成した（例: `git worktree add`）
   - When: 新しい worktree で Codex CLI を起動する
   - Then: 追加の手作業（設定ファイルの手編集）なしに、必要に応じて Codex の標準フロー（信頼の促し→ユーザー承認）で trust を登録でき、skills が認識される
-  - 観測点: 実装で観測方法を固定する（例: trust 促しの表示、承認後に skills が見える、など）
+  - 観測点:
+    - 手動: 新規 worktree でも trust 促し→承認（必要なら再起動）で skills が見える
+    - 自動テスト（proxy）: `--cd` 付与、および `sandbox` が `config.toml` を編集しない（AC-003）
 
 ### 入力→出力例 (任意)
 - 該当なし（観測方法は設計フェーズで固定する）

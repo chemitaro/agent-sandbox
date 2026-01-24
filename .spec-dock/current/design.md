@@ -86,16 +86,17 @@
 ## インターフェース契約（ここで固定） (任意)
 - IF-001: `host/sandbox::run_compose_exec_codex(container_workdir, container_name, compose_project_name, abs_mount_root, ...codex_args)`
   - 変更点:
-    - `codex resume` 呼び出しに `--cd .`（または同等）を追加する
+    - `codex resume` 呼び出しに `--cd .` を **デフォルトで付与**し、Codex 側の作業ディレクトリを確実に container_workdir に揃える
+    - ただし、ユーザーが `sandbox codex -- --cd <path>` または `sandbox codex -- -C <path>` を渡している場合は **重複回避のため sandbox 側は `--cd` を付与しない**（ユーザー指定を尊重）
     - `codex_args` は従来通り `sandbox codex -- [codex args...]` で渡されたものを後ろに連結する
 
 ---
 
 ## 変更計画（ファイルパス単位） (必須)
-- 変更（Modify）:
+  - 変更（Modify）:
   - `host/sandbox`
     - `run_compose_exec_codex`: `codex resume` 呼び出しに `--cd .` を追加し、Codex の作業ディレクトリを確実に container_workdir に揃える
-    - `print_help` / `print_help_codex`: trust は Codex の標準フローに委ねる旨を短く補足（必要なら）
+    - `print_help` / `print_help_codex`: trust は Codex の標準フローに委ねる旨、`sandbox shell` で codex を起動する場合は `codex resume --cd .` を推奨する旨を短く補足（必要なら）
   - `tests/sandbox_cli.test.sh`
     - `shell_trusts_git_repo_root_for_codex`: 削除または否定テストへ変更（`.agent-home/.codex/config.toml` を作成しないこと = AC-003）
     - `codex_inner_runs_codex_resume_and_returns_to_zsh` / `codex_inner_without_double_dash_uses_default_args`: `--cd` が含まれることを観測点として追加
@@ -106,7 +107,7 @@
 ---
 
 ## マッピング（要件 → 設計） (必須)
-- AC-001 → `sandbox codex` 起動で `--cd` を付与し、worktree 配下の `.codex/skills` 探索が安定する
+- AC-001 → `sandbox shell` は `-w` で worktree に入る。Codex のセッション再開時にディレクトリぶれが疑われる場合は `codex resume --cd .` を推奨（ヘルプ/手順で明記）
 - AC-002 → `--cd` により trust 判定の基準ディレクトリを worktree に揃え、Codex 標準フローで trust 登録 → skills 認識へ到達
 - AC-003 → `sandbox` は `config.toml` を直接編集しない（テストで担保）
 - AC-004 → AC-002 と同様（新規 worktree でも trust 導線で到達）
@@ -116,6 +117,10 @@
 ---
 
 ## テスト戦略（最低限ここまで具体化） (任意)
+### 観測の扱い（重要）
+- 自動テストでは、実 Codex を起動して “skills が認識された” を直接観測できない（本 repo のテスト方針: 実 Docker/Codex へ依存せず stubs/helpers で determinism を保つ）。
+- そのため本タスクでは、**`--cd` 付与（作業ディレクトリ固定）を proxy の観測点**として採用し、加えて **手動確認手順**を残して受け入れを完結させる（レビュー指摘に対応）。
+
 - 更新するテスト（Bash, 既存 stubs 使用）:
   - `tests/sandbox_cli.test.sh::codex_inner_runs_codex_resume_and_returns_to_zsh`
     - Then: docker compose exec のコマンド列に `--cd` が含まれる（例: `codex resume --cd .`）
@@ -126,13 +131,23 @@
 - 実行コマンド:
   - `bash tests/sandbox_cli.test.sh`
 
+### 手動確認（受け入れ手順）
+- 前提: worktree 内に確認用の skill が存在する（例: `<worktree>/.codex/skills/**/SKILL.md`）。
+- `sandbox codex` の場合:
+  1) `sandbox codex` を起動する（`--cd` は sandbox が自動で付与する）
+  2) trust 促しが出たら承認する（prompt / `/approvals`）
+  3) skills は startup 時ロードのため、承認後に skills が見えない場合は **Codex を再起動**する（セッション終了→再実行）
+  4) プロジェクト固有 skills（例: 既知の skill 名）が利用できることを確認する
+- `sandbox shell` の場合:
+  1) `sandbox shell` で目的の worktree に入り、`pwd` が `/srv/mount/<repo_or_worktree>` 配下であることを確認する
+  2) Codex を起動する際は `codex resume --cd .` を推奨（resume による作業ディレクトリぶれを抑止する）
+  3) trust 促しが出たら承認し、必要なら再起動して skills を確認する（上と同様）
+
 ---
 
 ## リスク/懸念（Risks） (任意)
 - R-001: Codex バージョン差で `--cd` が存在しない場合（影響: 起動失敗）
-  - 対応案:
-    - `codex --help` 等でサポート有無を判定してフォールバック（要検討）
-    - もしくは README/ヘルプに最小バージョンを明記（要検討）
+  - 対応（採用）: 本設計は `--cd` が利用可能な Codex CLI を前提とし、必要ならヘルプに明記する（この repo は `package.json` で `@openai/codex` をグローバル導入対象に含めている）
 - R-002: trust エントリの増殖（影響: config 肥大化）
   - 対応: 本タスクでは “Codex の正規挙動として増える” ことは許容。sandbox 側は workdir の正規化（realpath）を維持する。
 
