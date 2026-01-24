@@ -3,7 +3,7 @@
 機能ID: "FEAT-CODEX-TRUST-001"
 機能名: "コンテナ内Codexのスキル認識を安定化（複数worktree並行運用）"
 関連Issue: ["N/A"]
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI"
 最終更新: "2026-01-24"
 依存: ["requirement.md"]
