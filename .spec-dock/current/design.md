@@ -87,13 +87,13 @@
 - IF-001: `host/sandbox::run_compose_exec_codex(container_workdir, container_name, compose_project_name, abs_mount_root, ...codex_args)`
   - 変更点:
     - `codex resume` 呼び出しに `--cd .` を **デフォルトで付与**し、Codex 側の作業ディレクトリを確実に container_workdir に揃える
-    - ただし、ユーザーが `sandbox codex -- --cd <path>` または `sandbox codex -- -C <path>` を渡している場合は **重複回避のため sandbox 側は `--cd` を付与しない**（ユーザー指定を尊重）
+    - ただし、ユーザーが `sandbox codex -- --cd <path>` / `sandbox codex -- --cd=<path>` または `sandbox codex -- -C <path>` / `sandbox codex -- -C<path>` を渡している場合は **重複回避のため sandbox 側は `--cd` を付与しない**（ユーザー指定を尊重）
     - `codex_args` は従来通り `sandbox codex -- [codex args...]` で渡されたものを後ろに連結する
 
 ---
 
 ## 変更計画（ファイルパス単位） (必須)
-  - 変更（Modify）:
+- 変更（Modify）:
   - `host/sandbox`
     - `run_compose_exec_codex`: `codex resume` 呼び出しに `--cd .` を追加し、Codex の作業ディレクトリを確実に container_workdir に揃える
     - `print_help` / `print_help_codex`: trust は Codex の標準フローに委ねる旨、`sandbox shell` で codex を起動する場合は `codex resume --cd .` を推奨する旨を短く補足（必要なら）

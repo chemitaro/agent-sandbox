@@ -130,6 +130,31 @@ sed / nl で対象mdを確認し、apply_patch で更新
 
 ---
 
+### 2026-01-24 21:20 - 21:30
+
+#### 対象
+- Planning: 設計レビュー（軽微）反映（ドキュメント体裁・事故予防）
+
+#### 実施内容
+- 変更計画セクションの箇条書きインデント（体裁）を修正
+- IF-001 の `--cd` 重複回避条件に `--cd=<path>` と `-C<path>` を含める旨を追記（実装事故予防）
+- 追レビュー内容を discussion シートへ追記
+
+#### 実行コマンド / 結果
+```bash
+sed で確認し、apply_patch で更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 変更計画のインデント修正、IF-001 の検知対象を追記
+- `.spec-dock/current/discussions/design-review-20260124.md` - 追レビューと対応を追記
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
 ## 遭遇した問題と解決 (任意)
 - 問題: ...
   - 解決: ...
