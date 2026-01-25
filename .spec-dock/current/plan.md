@@ -22,7 +22,7 @@
 ## ステップ一覧（観測可能な振る舞い） (必須)
 - [ ] S01: 既存テストを新仕様へ置換する（永続 config を書かない）
 - [ ] S02: git repo で `sandbox codex` が defaults + trust を注入する
-- [ ] S03: 非 git で `sandbox codex` が effective dir を trust 注入する
+- [ ] S03: git 取得不能時でも `sandbox codex` が effective dir を trust 注入する（fallback）
 - [ ] S04: ユーザー指定 `-C/-a/-s` を尊重し二重指定しない
 - [ ] S05: user `-c/--config projects...` をエラーにする
 - [ ] S06: `sandbox codex -h` のヘルプに注意書きを追加する
@@ -107,11 +107,19 @@
 - When: `codex resume` が起動される
 - Then:
   - `codex resume` に `-a never` / `-s danger-full-access` / `-C .` が付与される（ユーザー未指定のため）
-  - `-c projects={\"/srv/mount/<trust1>\"={trust_level=\"trusted\"},\"/srv/mount/<trust2>\"={trust_level=\"trusted\"}}` が付与される
+  - trust 注入として `-c projects={...}` が付与される（`trust_dir` は `/srv/mount/...` に写像）
     - trust1: `--show-toplevel` 由来（worktree root）
     - trust2: `--git-common-dir` 親（root git project for trust）
+  - trust の重複は除外される（AC-001 の観測）:
+    - trust1 == trust2 の場合、`projects={...}` のエントリは **1件**になる（同一キーを2回注入しない）
+  - EC-002（mount-root 外の除外）の観測:
+    - trust1/trust2 のいずれかが mount-root 外に解決される場合、その trust は `projects={...}` に **含めない**
+    - 両方とも除外された場合、`-c projects=...` 自体を付与せず、stderr に警告を出す
   - `.agent-home/.codex/config.toml` は作成されない
-- 観測点: compose stub ログ（CMD の引数列）+ ファイル存在チェック
+- 観測点:
+  - compose stub ログ（CMD の引数列）: `-a/-s/-C/-c projects=...` の有無と内容
+  - stderr（EC-002 の警告）
+  - ファイル存在チェック（永続 config が作られない）
 
 #### Red（失敗するテストを先に書く） (任意)
 - 期待する失敗:
@@ -137,7 +145,7 @@
 
 ---
 
-### S03 — 非 git で `sandbox codex` が effective dir を trust 注入する (必須)
+### S03 — git 取得不能時でも `sandbox codex` が effective dir を trust 注入する（fallback） (必須)
 - 対象: AC-003, EC-001
 - 設計参照:
   - 対象IF: IF-001/IF-002/IF-003
@@ -147,13 +155,23 @@
 - [ ] `update_plan` に S03 を登録する
 
 #### 期待する振る舞い（テストケース） (必須)
-- Given: `.git` が無いディレクトリで `SANDBOX_CODEX_NO_TMUX=1 sandbox codex` を実行する（compose は stub、git は呼ばれない/失敗する）
+- Given: `SANDBOX_CODEX_NO_TMUX=1 sandbox codex` を実行する（compose/git は stub）
+  - 前提を固定: mount-root == workdir とする（container 側 workdir が `/srv/mount` になり、expect を固定できる）
 - When: `codex resume` が起動される
-- Then:
+- Then（Case A: 非 git / `.git` 無し）:
   - `-a never -s danger-full-access -C .` が付与される
-  - trust 注入として `-c projects={\"/srv/mount\"={trust_level=\"trusted\"}}`（effective `--cd` = `.` のため）が付与される
-  - `sandbox codex` は exit code 0 で動作する
-- 観測点: compose stub ログ
+  - trust 注入として `-c projects={\"/srv/mount\"={trust_level=\"trusted\"}}` が付与される（effective `--cd` = `.`）
+  - exit code 0
+- Then（Case B: git marker はあるが `git rev-parse` が失敗する / EC-001 の観測）:
+  - `.git` は存在するが、`git -C ... rev-parse ...` が non-zero になるよう stub する
+  - `sandbox codex` は exit code 0 で起動し、trust 注入は Case A と同様に effective dir（`/srv/mount`）に fallback される
+  - stderr に「git 取得に失敗したため fallback した」旨の警告が出る
+- Then（Case C: effective dir が mount-root 外に解決される / EC-002 の観測）:
+  - ユーザー指定 `-C ../..` 等により effective dir が mount-root 外になる状況を作る
+  - trust 注入（`-c projects=...`）は行わず、stderr に警告を出す（ただし `codex resume` 自体は起動する）
+- 観測点:
+  - compose stub ログ（CMD の引数列）: `-c projects=...` の有無
+  - stderr（Case B/C の警告）
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] `bash tests/sandbox_cli.test.sh` を実行し、成功した
