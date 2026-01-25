@@ -3,7 +3,7 @@
 機能ID: "SBX-CODEX-AUTO-BOOTSTRAP"
 機能名: "sandbox codex: Trust状態に応じた自動Bootstrap/YOLO切替"
 関連Issue: []
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI (GPT-5.2)"
 最終更新: "2026-01-26"
 ---
