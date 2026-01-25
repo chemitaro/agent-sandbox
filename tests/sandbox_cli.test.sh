@@ -1146,7 +1146,7 @@ STUB
     assert_stderr_contains "Trust" "$RUN_STDERR"
 }
 
-codex_inner_non_git_runs_yolo_with_skip_git_repo_check() {
+codex_inner_non_git_runs_yolo_without_skip_git_repo_check() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
     setup_compose_stubs "$tmp_dir"
@@ -1160,7 +1160,7 @@ codex_inner_non_git_runs_yolo_with_skip_git_repo_check() {
 
     SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
-    assert_log_contains "$log_file" "--skip-git-repo-check"
+    assert_log_not_contains "$log_file" "--skip-git-repo-check"
     assert_log_contains "$log_file" "--sandbox"
     assert_log_contains "$log_file" "danger-full-access"
     assert_log_contains "$log_file" "--ask-for-approval"
@@ -1304,7 +1304,7 @@ run_test "codex_inner_without_double_dash_uses_default_args" codex_inner_without
 run_test "codex_inner_adds_cd_to_resume" codex_inner_adds_cd_to_resume
 run_test "codex_inner_runs_yolo_when_trusted" codex_inner_runs_yolo_when_trusted
 run_test "codex_inner_runs_bootstrap_when_untrusted_and_prints_hint" codex_inner_runs_bootstrap_when_untrusted_and_prints_hint
-run_test "codex_inner_non_git_runs_yolo_with_skip_git_repo_check" codex_inner_non_git_runs_yolo_with_skip_git_repo_check
+run_test "codex_inner_non_git_runs_yolo_without_skip_git_repo_check" codex_inner_non_git_runs_yolo_without_skip_git_repo_check
 run_test "codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap" codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap
 run_test "codex_rejects_conflicting_args_before_compose" codex_rejects_conflicting_args_before_compose
 run_test "codex_help_flag_after_double_dash_is_passed_to_codex" codex_help_flag_after_double_dash_is_passed_to_codex

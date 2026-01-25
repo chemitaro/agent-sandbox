@@ -20,7 +20,7 @@
   - `codex resume` に `--cd <container_workdir>` を必ず付与
   - Git worktree を考慮（Trust判定は show-toplevel を使用）
   - 競合する Codex 引数が渡された場合はエラーにする（代替として `sandbox shell` を案内）
-  - 非Gitは既定で YOLO + `--skip-git-repo-check`
+  - 非Gitは既定で YOLO
 - MUST NOT:
   - sandbox 側で `config.toml` の `projects` を機械編集して Trust を付与しない
   - `-c/--config` による `projects` “注入” を前提にしない
@@ -42,7 +42,7 @@
   - `docker-compose.yml`:
     - `.agent-home/.codex` が `/home/node/.codex` に bind mount される
   - 公式ドキュメント（リンクは discussions 側に集約予定）:
-    - `codex resume` と `--cd/-C`、`--skip-git-repo-check`、`--config/-c`（`key=value`/JSON）など
+    - `codex resume` と `--cd/-C`、`--config/-c`（`key=value`/JSON）など
     - `[projects."..."] trust_level = "trusted"` の形式
   - upstream issue:
     - “最大権限相当” のとき trust onboarding が抑止され、repo-local skills が見えない問題が既知
@@ -72,7 +72,7 @@
   3) stderr に「Trust→終了→再実行」案内を出す
 - Flow for AC-003（非Git）:
   1) show-toplevel が取得できない
-  2) `--skip-git-repo-check` を付与して YOLO で `codex resume --cd ...` を起動
+  2) YOLO で `codex resume --cd ...` を起動
 
 ---
 
@@ -101,7 +101,7 @@
 - IF-003: `build_codex_resume_args(mode, container_workdir, passthrough_args[]) -> argv[]`
   - 必ず `--cd <container_workdir>` を含める
   - `mode=yolo` の場合は YOLO相当の引数（`--sandbox danger-full-access`, `--ask-for-approval never`）を含める
-  - 非Gitの場合は `--skip-git-repo-check` を含める
+  - 非Gitの場合は追加フラグを付与しない（YOLOのみ）
   - passthrough の競合引数は拒否（エラー）
 
 ---
@@ -143,7 +143,8 @@
 
 ### 4) mode 判定（compute_codex_mode）
 - `git_state = non_git`:
-  - `mode = yolo`（`--skip-git-repo-check` を付与）
+  - `mode = yolo`
+  - ※ `--skip-git-repo-check` は現行CLIでエラーになるため付与しない
 - `git_state = git_ok`:
   - `is_codex_project_trusted(trust_key)` が true → `mode=yolo`
   - false → `mode=bootstrap`（stderrに案内を出す）
@@ -156,10 +157,8 @@
 - mode=yolo の場合に付与:
   - `--ask-for-approval never`
   - `--sandbox danger-full-access`
-- `git_state=non_git` のとき:
-  - `--skip-git-repo-check` を付与（Codexがgit必須の既定を回避するため）
 - `git_state=git_error` のとき:
-  - `--skip-git-repo-check` は付与しない（`.git` があるため）
+  - 追加フラグは付与しない（`.git` があるため）
 - passthrough:
   - `sandbox codex -- [args...]` の `[args...]` を後ろに連結
   - ただし競合引数（`--yolo/--profile/--config/--sandbox/--ask-for-approval/--cd` 等）はエラー
@@ -198,7 +197,7 @@
 - どのAC/ECをどのテストで保証するか（proxy）:
   - AC-001: Trust済み fixture → docker compose stub log に YOLO 引数が含まれる
   - AC-002: 未Trust fixture → YOLO 引数が含まれない + stderr に案内が出る
-  - AC-003: 非Git fixture → `--skip-git-repo-check` が付く + YOLO 引数が付く
+  - AC-003: 非Git fixture → YOLO 引数が付く
   - EC-001: config.toml 不在 → Gitなら bootstrap 扱い（案内あり）
   - EC-002: `.git` はあるが git rev-parse 失敗 → 警告 + fallback
 - 実行コマンド:

@@ -52,7 +52,7 @@
   - Trust 済みなら YOLO モード（`approval_policy="never"`, `sandbox_mode="danger-full-access"`）で起動する。
   - `codex resume` に `--cd`（コンテナ内の作業ディレクトリ）を必ず付与し、workdir がセッションに反映されることを保証する。
   - ユーザーが競合する Codex 引数（例: `--yolo/--profile/--config/--sandbox/--ask-for-approval/--cd` 等）を渡した場合はエラーにし、`sandbox shell` で素の `codex` を使うよう案内する。
-  - 非Gitディレクトリは既定で YOLO モードで起動し、`--skip-git-repo-check` を付与する。
+  - 非Gitディレクトリは既定で YOLO モードで起動する。
 - MUST NOT（絶対にやらない／追加しない）:
   - 外部ツール（= sandbox 側）が `~/.codex/config.toml` / `.agent-home/.codex/config.toml` の `projects` を機械的に追記・編集して Trust を付与しない。
   - `-c/--config` で `projects` を注入して Trust を成立させる設計にしない（成立しないことが確認されているため）。
@@ -74,7 +74,7 @@
 
 ## 判断材料/トレードオフ（Decision / Trade-offs） (任意)
 - 論点: 非Gitディレクトリの既定モード
-  - 選択肢A: 非Gitは常に YOLO + `--skip-git-repo-check`（Trustは見ない）
+  - 選択肢A: 非Gitは常に YOLO（Trustは見ない）
   - 選択肢B: 非Gitも Trust 未確立なら bootstrap（Trust導線を優先）
   - 決定: 選択肢A（回答: 1A）
 
@@ -128,7 +128,6 @@
     - `.git` が存在しない（= 非Gitディレクトリ）
   - When: `sandbox codex --workdir <non_git_dir>` を実行する
   - Then:
-    - `docker compose exec ... codex resume` の引数に `--skip-git-repo-check` が含まれる
     - 既定は YOLO モードで起動される
   - 観測点: docker compose stub log
 
@@ -143,7 +142,7 @@
 ## 例外・エッジケース（仕様として固定） (必須)
 - EC-001: `.agent-home/.codex/config.toml` が存在しない
   - 条件: Trust判定に必要な config ファイルが無い
-  - 期待: Gitの場合は未Trustとして bootstrap 起動（stderrに案内）。非Gitは YOLO 起動（`--skip-git-repo-check` を付与）
+  - 期待: Gitの場合は未Trustとして bootstrap 起動（stderrに案内）。非Gitは YOLO 起動
   - 観測点: stderr / docker compose stub log
 
 - EC-002: `.git` はあるが `git rev-parse --show-toplevel` が失敗する

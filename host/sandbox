@@ -1052,7 +1052,7 @@ Options:
 Notes:
   Trust状態に応じて bootstrap/YOLO を自動で切り替えます。
   未TrustのGitは bootstrap で起動します（Trust後に再実行するとYOLO）。
-  非Gitは YOLO + --skip-git-repo-check で起動します。
+  非Gitは YOLO で起動します。
   競合する引数（--yolo/--sandbox/--ask-for-approval/--profile/--config/--cd など）を渡すとエラーになります。
   必要な場合は sandbox shell で codex を直接実行してください。
   Arguments after "--" are passed to codex (e.g., sandbox codex -- --help).
@@ -1197,9 +1197,6 @@ main() {
         local codex_resume_args=("--cd" "$container_workdir")
         if [[ "${CODEX_MODE:-}" == "yolo" ]]; then
             codex_resume_args+=("--sandbox" "danger-full-access" "--ask-for-approval" "never")
-        fi
-        if [[ "${CODEX_GIT_STATE:-}" == "non_git" ]]; then
-            codex_resume_args+=("--skip-git-repo-check")
         fi
         if [[ ${CODEX_ARGS+x} ]]; then
             codex_resume_args+=("${CODEX_ARGS[@]}")

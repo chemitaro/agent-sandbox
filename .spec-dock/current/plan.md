@@ -23,7 +23,7 @@
 - [ ] S02: `sandbox codex` が常に `--cd <container_workdir>` を付与する
 - [ ] S03: Trust済みGitでは YOLO で起動する（+ `--cd`）
 - [ ] S04: 未TrustGitでは bootstrap で起動し、Trust案内を出す（+ `--cd`）
-- [ ] S05: 非Gitでは YOLO + `--skip-git-repo-check` で起動する（+ `--cd`）
+- [ ] S05: 非Gitでは YOLO で起動する（+ `--cd`）
 - [ ] S06: `.git` はあるが rev-parse 失敗時は bootstrap + 警告で起動する（+ `--cd`）
 - [ ] S07: 競合引数はエラーで拒否し、compose を呼ばない
 - [ ] S08: `sandbox codex --help` の説明を更新する（自動切替/競合引数拒否を明記）
@@ -158,7 +158,7 @@
   - 対象IF: IF-001, IF-002, IF-003
   - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_runs_bootstrap_when_untrusted_and_prints_hint`
 - このステップで「追加しないこと（スコープ固定）」:
-  - 非Gitの `--skip-git-repo-check`（S05）
+  - 非Gitの扱い（S05）
 
 #### update_plan（着手時に登録） (必須)
 - [ ] `update_plan` に作業ステップを登録した
@@ -191,11 +191,11 @@
 
 ---
 
-### S05 — 非Gitでは YOLO + `--skip-git-repo-check` で起動する（+ `--cd`） (必須)
+### S05 — 非Gitでは YOLO で起動する（+ `--cd`） (必須)
 - 対象: AC-003
 - 設計参照:
   - 対象IF: IF-001, IF-003
-  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_with_skip_git_repo_check`
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_without_skip_git_repo_check`
 - このステップで「追加しないこと（スコープ固定）」:
   - `.git` があるケース（S06）
 
@@ -206,19 +206,18 @@
 - Given: `.git` が存在しないディレクトリ
 - When: `sandbox codex ...` を実行する
 - Then:
-  - `codex resume` 引数に `--skip-git-repo-check` が含まれる
+  - `codex resume` 引数に `--skip-git-repo-check` が含まれない
   - `--sandbox danger-full-access` と `--ask-for-approval never` が含まれる
   - `--cd ...` は含まれる
-- かつ: `--skip-git-repo-check` が付くのは “非Git（.git無し）” のときのみ（S06で否定を観測）
 - 観測点: docker compose stub log
-- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_with_skip_git_repo_check`
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_without_skip_git_repo_check`
 
 #### Green（最小実装） (任意)
 - 変更予定ファイル:
   - Modify: `host/sandbox`
   - Modify: `tests/sandbox_cli.test.sh`
 - 実装方針:
-  - `find_git_marker` が false の場合は non-git として扱い、YOLO + `--skip-git-repo-check` を付与する
+  - `find_git_marker` が false の場合は non-git として扱い、YOLO で起動する
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した

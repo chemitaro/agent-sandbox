@@ -100,7 +100,7 @@ sandbox codex --workdir .
 ```
 
 期待（正しい状態）:
-- `--skip-git-repo-check` が付与され、Codex が起動できる。
+- Codex が起動できる。
 - 既定モード（YOLO/boot）は requirement.md Q-001 の決定どおり。
 
 ## 省略/例外メモ

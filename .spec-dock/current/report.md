@@ -400,6 +400,37 @@ bash tests/sandbox_cli.test.sh
 #### コミット
 - なし（禁止コマンドのため `git commit` は実施しない）
 
+---
+
+### 2026-01-26 02:10 - 02:20
+
+#### 対象
+- Step: S05（非Gitの挙動調整）
+- AC/EC: AC-003 / EC-001
+
+#### 実施内容
+- 非Git時に `--skip-git-repo-check` を付与しないよう変更（現行CLIで未対応のため）。
+- `sandbox codex --help` の文言を修正。
+- テストと仕様ドキュメントを整合更新。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - `--skip-git-repo-check` 付与を削除、ヘルプ文言更新
+- `tests/sandbox_cli.test.sh` - 非Gitテストを「skip無し」に更新
+- `.spec-dock/current/requirement.md` - 非Gitの受け入れ条件/要件を更新
+- `.spec-dock/current/design.md` - 非Gitの引数方針を更新
+- `.spec-dock/current/plan.md` - S05の期待/テスト名を更新
+- `.spec-dock/current/discussions/manual-acceptance.md` - 非Gitの観測点を更新
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
 ## 遭遇した問題と解決 (任意)
 - 問題: ...
   - 解決: ...
