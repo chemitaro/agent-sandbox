@@ -168,6 +168,208 @@ sed -n '1,260p' .spec-dock/current/plan.md
 
 ---
 
+### 2026-01-26 00:49 - 00:54
+
+#### 対象
+- Step: S01
+- AC/EC: MUST NOT（config機械編集禁止の回帰防止）
+
+#### 実施内容
+- `sandbox shell` が Codex config を生成しないことを回帰防止として固定するため、誤っていたテストを置換。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - `shell_trusts_git_repo_root_for_codex` を `shell_does_not_write_codex_config` に置換
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 00:54 - 00:55
+
+#### 対象
+- Step: S02
+- AC/EC: AC-001/AC-002/AC-003（共通要件）
+
+#### 実施内容
+- `sandbox codex` の `codex resume` に常に `--cd <container_workdir>` を付与する実装とテストを追加。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - `codex resume` 起動時に `--cd` を常時付与
+- `tests/sandbox_cli.test.sh` - `codex_inner_adds_cd_to_resume` を追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 00:55 - 00:59
+
+#### 対象
+- Step: S03
+- AC/EC: AC-001
+
+#### 実施内容
+- Trust 済み Git の場合に YOLO で起動する判定ロジックを追加。
+- Trust 判定（config.toml 読み取り）と git_state 分岐を導入。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - `compute_codex_mode`/`is_codex_project_trusted` を追加し YOLO 引数を注入
+- `tests/sandbox_cli.test.sh` - `codex_inner_runs_yolo_when_trusted` を追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 00:59 - 01:03
+
+#### 対象
+- Step: S04
+- AC/EC: AC-002, EC-001, EC-003
+
+#### 実施内容
+- 未Trust Git の bootstrap 起動＋案内をテストで固定。
+- Trust 判定の awk ロジックを修正（END での無条件 exit を排除）。
+- テスト側に `.git` 生成を追加し、git/non-git の区別を正しく観測。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - trust 判定の awk バグ修正
+- `tests/sandbox_cli.test.sh` - bootstrap テスト追加・`.git` セットアップ追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 01:03 - 01:04
+
+#### 対象
+- Step: S05
+- AC/EC: AC-003
+
+#### 実施内容
+- 非Git時に YOLO + `--skip-git-repo-check` が付与されることをテストで固定。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - `codex_inner_non_git_runs_yolo_with_skip_git_repo_check` を追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 01:04 - 01:05
+
+#### 対象
+- Step: S06
+- AC/EC: EC-002
+
+#### 実施内容
+- `.git` はあるが `rev-parse` 失敗時に bootstrap + 警告で起動する挙動をテストで固定。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `tests/sandbox_cli.test.sh` - `codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap` を追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 01:05 - 01:07
+
+#### 対象
+- Step: S07
+- AC/EC: MUST（競合引数の拒否）
+
+#### 実施内容
+- `sandbox codex` に競合引数検知を追加し、`--yolo/-c/-C/-a/-s/-p` 等が渡されたらエラーにする。
+- compose を呼ばないことをテストで固定。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - 競合引数の検知ロジックを追加
+- `tests/sandbox_cli.test.sh` - `codex_rejects_conflicting_args_before_compose` を追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
+### 2026-01-26 01:22 - 01:24
+
+#### 対象
+- Step: S08
+- AC/EC: なし（ヘルプ文言更新）
+
+#### 実施内容
+- `sandbox codex --help` に自動 bootstrap/YOLO 切替と競合引数拒否の注意を追記。
+- ヘルプ文言の更新をテストで固定。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - `print_help_codex` の文言更新
+- `tests/sandbox_cli.test.sh` - `help_codex_mentions_auto_bootstrap_and_conflicts` を追加
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
 ### YYYY-MM-DD HH:MM - HH:MM
 
 #### 対象
@@ -178,6 +380,25 @@ sed -n '1,260p' .spec-dock/current/plan.md
 - ...
 
 ---
+
+### 2026-01-26 01:28 - 01:30
+
+#### 対象
+- Step: S09
+- AC/EC: 手動受け入れ（bootstrap → trust → yolo）
+
+#### 実施内容
+- この環境では対象プロジェクトの実体（/srv/mount/...）が無いため、手動受け入れの再現を実行できませんでした。
+- 手順は `.spec-dock/current/discussions/manual-acceptance.md` に整理済みのため、実環境での実行を依頼します。
+
+#### 実行コマンド / 結果
+- 実行なし（実環境不足）
+
+#### 変更したファイル
+- なし
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
 
 ## 遭遇した問題と解決 (任意)
 - 問題: ...

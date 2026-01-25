@@ -392,6 +392,27 @@ split_codex_args() {
     done
 }
 
+codex_args_have_conflicts() {
+    local arg
+    for arg in "${CODEX_ARGS[@]}"; do
+        case "$arg" in
+            --yolo|--dangerously-bypass-approvals-and-sandbox)
+                return 0
+                ;;
+            --sandbox|-s|--ask-for-approval|-a|--profile|-p|--config|-c|--cd|-C)
+                return 0
+                ;;
+            --sandbox=*|--ask-for-approval=*|--profile=*|--config=*|--cd=*)
+                return 0
+                ;;
+            -C*|-c*|-a*|-s*|-p*)
+                return 0
+                ;;
+        esac
+    done
+    return 1
+}
+
 determine_paths() {
     if [[ -n "$MOUNT_ROOT_ARG" && -n "$WORKDIR_ARG" ]]; then
         if ! ABS_MOUNT_ROOT="$(resolve_path "$MOUNT_ROOT_ARG")"; then
@@ -518,6 +539,83 @@ compute_container_workdir() {
 
     local rel="${abs_workdir#$abs_mount_root/}"
     echo "/srv/mount/$rel"
+}
+
+codex_config_path() {
+    echo "$SANDBOX_ROOT/.agent-home/.codex/config.toml"
+}
+
+is_codex_project_trusted() {
+    local trust_key="$1"
+    local config_path
+    config_path="$(codex_config_path)"
+
+    if [[ -z "$trust_key" ]]; then
+        return 1
+    fi
+    if [[ ! -f "$config_path" ]]; then
+        return 1
+    fi
+
+    if awk -v key="$trust_key" '
+        BEGIN { in_section=0; found=0 }
+        $0 ~ /^\[projects\./ {
+            if (index($0, "[projects.\"" key "\"]") || index($0, "[projects.\047" key "\047]")) {
+                in_section=1; next
+            }
+            in_section=0
+        }
+        in_section && $0 ~ /trust_level/ && $0 ~ /trusted/ { found=1; exit }
+        END { exit found ? 0 : 1 }
+    ' "$config_path"; then
+        return 0
+    fi
+
+    local compact
+    compact="$(tr -d ' \t\r\n' < "$config_path")"
+    if [[ "$compact" == *"\"$trust_key\"={trust_level=\"trusted\"}"* || "$compact" == *"\"$trust_key\"={trust_level=\"trusted\"},"* ]]; then
+        return 0
+    fi
+    if [[ "$compact" == *"'$trust_key'={trust_level='trusted'}"* || "$compact" == *"'$trust_key'={trust_level='trusted'},"* ]]; then
+        return 0
+    fi
+
+    return 1
+}
+
+compute_codex_mode() {
+    local abs_mount_root="$1"
+    local abs_workdir="$2"
+
+    CODEX_GIT_STATE=""
+    CODEX_TRUST_KEY=""
+    CODEX_MODE=""
+    CODEX_BOOTSTRAP_NOTICE=""
+    CODEX_WARNING=""
+
+    if find_git_marker "$abs_workdir"; then
+        if repo_root="$(git -C "$abs_workdir" rev-parse --show-toplevel 2>/dev/null)"; then
+            repo_root="$(resolve_path "$repo_root")" || return 1
+            CODEX_GIT_STATE="git_ok"
+            CODEX_TRUST_KEY="$(compute_container_workdir "$abs_mount_root" "$repo_root")" || return 1
+            if is_codex_project_trusted "$CODEX_TRUST_KEY"; then
+                CODEX_MODE="yolo"
+            else
+                CODEX_MODE="bootstrap"
+                CODEX_BOOTSTRAP_NOTICE="sandbox codex: Trust が未設定のため bootstrap で起動します。Trust を実行してから再実行してください。"
+            fi
+        else
+            CODEX_GIT_STATE="git_error"
+            CODEX_MODE="bootstrap"
+            CODEX_WARNING="sandbox codex: failed to detect git root (rev-parse)"
+            CODEX_BOOTSTRAP_NOTICE="sandbox codex: Trust が未設定のため bootstrap で起動します。Trust を実行してから再実行してください。"
+        fi
+    else
+        CODEX_GIT_STATE="non_git"
+        CODEX_MODE="yolo"
+    fi
+
+    return 0
 }
 
 find_git_marker() {
@@ -952,6 +1050,11 @@ Options:
   --workdir <path>
   -h, --help
 Notes:
+  Trust状態に応じて bootstrap/YOLO を自動で切り替えます。
+  未TrustのGitは bootstrap で起動します（Trust後に再実行するとYOLO）。
+  非Gitは YOLO + --skip-git-repo-check で起動します。
+  競合する引数（--yolo/--sandbox/--ask-for-approval/--profile/--config/--cd など）を渡すとエラーになります。
+  必要な場合は sandbox shell で codex を直接実行してください。
   Arguments after "--" are passed to codex (e.g., sandbox codex -- --help).
 USAGE
 }
@@ -1063,6 +1166,10 @@ main() {
         if ! determine_paths; then
             exit 1
         fi
+        if [[ ${CODEX_ARGS+x} ]] && codex_args_have_conflicts; then
+            echo "sandbox codex: 競合する引数が指定されたため中止しました。sandbox shell で codex を直接実行してください。" >&2
+            exit 1
+        fi
         if ! ensure_docker_available; then
             exit 1
         fi
@@ -1077,12 +1184,27 @@ main() {
         if ! select_compose_cmd; then
             exit 1
         fi
-        run_compose_up "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
-        if [[ ${CODEX_ARGS+x} ]]; then
-            run_compose_exec_codex "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" "${CODEX_ARGS[@]}"
-        else
-            run_compose_exec_codex "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        if ! compute_codex_mode "$ABS_MOUNT_ROOT" "$ABS_WORKDIR"; then
+            exit 1
         fi
+        if [[ -n "${CODEX_WARNING:-}" ]]; then
+            echo "$CODEX_WARNING" >&2
+        fi
+        if [[ "${CODEX_MODE:-}" == "bootstrap" && -n "${CODEX_BOOTSTRAP_NOTICE:-}" ]]; then
+            echo "$CODEX_BOOTSTRAP_NOTICE" >&2
+        fi
+        run_compose_up "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        local codex_resume_args=("--cd" "$container_workdir")
+        if [[ "${CODEX_MODE:-}" == "yolo" ]]; then
+            codex_resume_args+=("--sandbox" "danger-full-access" "--ask-for-approval" "never")
+        fi
+        if [[ "${CODEX_GIT_STATE:-}" == "non_git" ]]; then
+            codex_resume_args+=("--skip-git-repo-check")
+        fi
+        if [[ ${CODEX_ARGS+x} ]]; then
+            codex_resume_args+=("${CODEX_ARGS[@]}")
+        fi
+        run_compose_exec_codex "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" "${codex_resume_args[@]}"
         exit $?
     fi
 

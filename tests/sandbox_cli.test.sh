@@ -238,6 +238,22 @@ help_any_position() {
     assert_no_stub_calls "$tmp_dir"
 }
 
+help_codex_mentions_auto_bootstrap_and_conflicts() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_stub_bins "$tmp_dir"
+
+    run_cmd "$tmp_dir/host/sandbox" codex --help
+    assert_exit_code 0 "$RUN_CODE"
+    assert_stdout_contains "bootstrap" "$RUN_STDOUT"
+    assert_stdout_contains "YOLO" "$RUN_STDOUT"
+    assert_stdout_contains "競合" "$RUN_STDOUT"
+    assert_stdout_contains "sandbox shell" "$RUN_STDOUT"
+
+    assert_no_files_created "$tmp_dir"
+    assert_no_stub_calls "$tmp_dir"
+}
+
 help_has_no_side_effects() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
@@ -627,7 +643,7 @@ shell_injects_dod_env_vars() {
     assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "PRODUCT_NAME=mount"
 }
 
-shell_trusts_git_repo_root_for_codex() {
+shell_does_not_write_codex_config() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
     setup_compose_stubs "$tmp_dir"
@@ -635,39 +651,19 @@ shell_trusts_git_repo_root_for_codex() {
     export STUB_DOCKER_INFO_EXIT=0
     export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
 
-    local root="$tmp_dir/mount-root"
-    local repo_root="$root/repo"
-    local workdir="$repo_root/subdir"
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
     setup_env_for_up "$tmp_dir" "$root" "$workdir"
-
-    cat > "$COMPOSE_STUB_DIR/git" <<'STUB'
-#!/bin/bash
-set -euo pipefail
-
-if [[ "${1:-}" == "-C" && "${3:-}" == "rev-parse" && "${4:-}" == "--show-toplevel" ]]; then
-    printf '%s\n' "${STUB_GIT_TOPLEVEL:?}"
-    exit 0
-fi
-
-exit 1
-STUB
-    chmod +x "$COMPOSE_STUB_DIR/git"
-    export STUB_GIT_TOPLEVEL="$repo_root"
-    hash -r
 
     run_cmd "$tmp_dir/host/sandbox" shell --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/repo/subdir agent-sandbox /bin/zsh"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir agent-sandbox /bin/zsh"
 
     local codex_config="$tmp_dir/.agent-home/.codex/config.toml"
-    if [[ ! -f "$codex_config" ]]; then
-        echo "Expected Codex config.toml to be created: $codex_config" >&2
-        return 1
-    fi
-    if ! grep -Fq '"/srv/mount/repo"' "$codex_config"; then
-        echo "Expected Codex config.toml to trust repo root: /srv/mount/repo" >&2
+    if [[ -e "$codex_config" ]]; then
+        echo "Did not expect Codex config.toml to be created: $codex_config" >&2
         echo "--- config.toml ---" >&2
-        cat "$codex_config" >&2
+        cat "$codex_config" >&2 || true
         return 1
     fi
 }
@@ -1046,6 +1042,195 @@ codex_inner_without_double_dash_uses_default_args() {
     assert_log_contains "$log_file" "exec\\ /bin/zsh"
 }
 
+codex_inner_adds_cd_to_resume() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "codex"
+    assert_log_contains "$log_file" "resume"
+    assert_log_contains "$log_file" "--cd"
+    assert_log_contains "$log_file" "/srv/mount/subdir"
+}
+
+codex_inner_runs_yolo_when_trusted() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/mount-root"
+    local repo_root="$root/repo"
+    local workdir="$repo_root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+    : > "$repo_root/.git"
+
+    mkdir -p "$tmp_dir/.agent-home/.codex"
+    cat > "$tmp_dir/.agent-home/.codex/config.toml" <<'TOML'
+[projects."/srv/mount/repo"]
+trust_level = "trusted"
+TOML
+
+    cat > "$COMPOSE_STUB_DIR/git" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-C" && "${3:-}" == "rev-parse" && "${4:-}" == "--show-toplevel" ]]; then
+    printf '%s\n' "${STUB_GIT_TOPLEVEL:?}"
+    exit 0
+fi
+
+exit 1
+STUB
+    chmod +x "$COMPOSE_STUB_DIR/git"
+    export STUB_GIT_TOPLEVEL="$repo_root"
+    hash -r
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "--sandbox"
+    assert_log_contains "$log_file" "danger-full-access"
+    assert_log_contains "$log_file" "--ask-for-approval"
+    assert_log_contains "$log_file" "never"
+    assert_log_contains "$log_file" "--cd"
+    assert_log_contains "$log_file" "/srv/mount/repo/subdir"
+    assert_log_not_contains "$log_file" "--skip-git-repo-check"
+}
+
+codex_inner_runs_bootstrap_when_untrusted_and_prints_hint() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/mount-root"
+    local repo_root="$root/repo"
+    local workdir="$repo_root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+    : > "$repo_root/.git"
+
+    cat > "$COMPOSE_STUB_DIR/git" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-C" && "${3:-}" == "rev-parse" && "${4:-}" == "--show-toplevel" ]]; then
+    printf '%s\n' "${STUB_GIT_TOPLEVEL:?}"
+    exit 0
+fi
+
+exit 1
+STUB
+    chmod +x "$COMPOSE_STUB_DIR/git"
+    export STUB_GIT_TOPLEVEL="$repo_root"
+    hash -r
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_not_contains "$log_file" "--sandbox"
+    assert_log_not_contains "$log_file" "--ask-for-approval"
+    assert_log_contains "$log_file" "--cd"
+    assert_log_contains "$log_file" "/srv/mount/repo/subdir"
+    assert_stderr_contains "Trust" "$RUN_STDERR"
+}
+
+codex_inner_non_git_runs_yolo_with_skip_git_repo_check() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "--skip-git-repo-check"
+    assert_log_contains "$log_file" "--sandbox"
+    assert_log_contains "$log_file" "danger-full-access"
+    assert_log_contains "$log_file" "--ask-for-approval"
+    assert_log_contains "$log_file" "never"
+    assert_log_contains "$log_file" "--cd"
+    assert_log_contains "$log_file" "/srv/mount/subdir"
+}
+
+codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/mount-root"
+    local repo_root="$root/repo"
+    local workdir="$repo_root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+    : > "$repo_root/.git"
+
+    cat > "$COMPOSE_STUB_DIR/git" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+exit 1
+STUB
+    chmod +x "$COMPOSE_STUB_DIR/git"
+    hash -r
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_not_contains "$log_file" "--sandbox"
+    assert_log_not_contains "$log_file" "--ask-for-approval"
+    assert_log_not_contains "$log_file" "--skip-git-repo-check"
+    assert_log_contains "$log_file" "--cd"
+    assert_stderr_contains "failed to detect git root (rev-parse)" "$RUN_STDERR"
+    assert_stderr_contains "Trust" "$RUN_STDERR"
+}
+
+codex_rejects_conflicting_args_before_compose() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir" -- --yolo
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected conflict error for --yolo" >&2
+        return 1
+    fi
+    assert_stderr_contains "競合" "$RUN_STDERR"
+    assert_log_not_contains "$log_file" "CMD="
+
+    : > "$log_file"
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir" -- -c foo=bar
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected conflict error for -c" >&2
+        return 1
+    fi
+    assert_stderr_contains "sandbox shell" "$RUN_STDERR"
+    assert_log_not_contains "$log_file" "CMD="
+}
+
 codex_help_flag_after_double_dash_is_passed_to_codex() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
@@ -1084,6 +1269,7 @@ codex_errors_when_tmux_missing() {
 run_test "help_top_level" help_top_level
 run_test "help_subcommand" help_subcommand
 run_test "help_any_position" help_any_position
+run_test "help_codex_mentions_auto_bootstrap_and_conflicts" help_codex_mentions_auto_bootstrap_and_conflicts
 run_test "help_has_no_side_effects" help_has_no_side_effects
 run_test "name_one_line_stdout" name_one_line_stdout
 run_test "docker_cmd_missing_errors" docker_cmd_missing_errors
@@ -1100,7 +1286,7 @@ run_test "tz_injection_rules" tz_injection_rules
 run_test "config_env_var_noise_is_not_present" config_env_var_noise_is_not_present
 run_test "shell_exec_w" shell_exec_w
 run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
-run_test "shell_trusts_git_repo_root_for_codex" shell_trusts_git_repo_root_for_codex
+run_test "shell_does_not_write_codex_config" shell_does_not_write_codex_config
 run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
 run_test "compose_project_name_is_safe" compose_project_name_is_safe
 run_test "build_only" build_only
@@ -1115,5 +1301,11 @@ run_test "status_has_no_side_effects" status_has_no_side_effects
 run_test "codex_outer_uses_tmux_and_session_name" codex_outer_uses_tmux_and_session_name
 run_test "codex_inner_runs_codex_resume_and_returns_to_zsh" codex_inner_runs_codex_resume_and_returns_to_zsh
 run_test "codex_inner_without_double_dash_uses_default_args" codex_inner_without_double_dash_uses_default_args
+run_test "codex_inner_adds_cd_to_resume" codex_inner_adds_cd_to_resume
+run_test "codex_inner_runs_yolo_when_trusted" codex_inner_runs_yolo_when_trusted
+run_test "codex_inner_runs_bootstrap_when_untrusted_and_prints_hint" codex_inner_runs_bootstrap_when_untrusted_and_prints_hint
+run_test "codex_inner_non_git_runs_yolo_with_skip_git_repo_check" codex_inner_non_git_runs_yolo_with_skip_git_repo_check
+run_test "codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap" codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap
+run_test "codex_rejects_conflicting_args_before_compose" codex_rejects_conflicting_args_before_compose
 run_test "codex_help_flag_after_double_dash_is_passed_to_codex" codex_help_flag_after_double_dash_is_passed_to_codex
 run_test "codex_errors_when_tmux_missing" codex_errors_when_tmux_missing
