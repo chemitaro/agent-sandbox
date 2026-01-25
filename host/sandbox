@@ -565,7 +565,8 @@ is_codex_project_trusted() {
             }
             in_section=0
         }
-        in_section && $0 ~ /trust_level/ && $0 ~ /trusted/ { found=1; exit }
+        in_section && ($0 ~ /trust_level[[:space:]]*=[[:space:]]*\"trusted\"/ \
+            || $0 ~ /trust_level[[:space:]]*=[[:space:]]*'\''trusted'\''/) { found=1; exit }
         END { exit found ? 0 : 1 }
     ' "$config_path"; then
         return 0
