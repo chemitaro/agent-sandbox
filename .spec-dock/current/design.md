@@ -121,7 +121,8 @@
        - 成功:
          - `git_state = git_ok`
          - `repo_root_host = resolve_path(<stdout>)`
-         - `trust_key = compute_container_workdir "$ABS_MOUNT_ROOT" "$repo_root_host"`（例: `/srv/mount/<repo>`）
+         - `repo_root_host` が `abs_mount_root` の外なら `git_state=non_git` として扱い、trust 判定は行わない
+         - それ以外は `trust_key = compute_container_workdir "$ABS_MOUNT_ROOT" "$repo_root_host"`（例: `/srv/mount/<repo>`）
        - 失敗:
          - `git_state = git_error`（EC-002）
          - `trust_key = ""`（※ただし non_git とは区別して扱う）

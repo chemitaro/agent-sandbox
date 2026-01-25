@@ -14,6 +14,7 @@
 ## この計画で満たす要件ID (必須)
 - 対象AC: AC-001, AC-002, AC-003
 - 対象EC: EC-001, EC-002, EC-003
+  - （追加）EC-004 は S05 で観測（repo root が mount-root 外 → 非Git扱い）
 - 対象制約:
   - sandbox が `config.toml` の `projects` を機械編集しない（MUST NOT）
   - tests は stub のみ（実Docker/実Git を呼ばない）
@@ -210,7 +211,9 @@
   - `--sandbox danger-full-access` と `--ask-for-approval never` が含まれる
   - `--cd ...` は含まれる
 - 観測点: docker compose stub log
-- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_without_skip_git_repo_check`
+- 追加/更新するテスト:
+  - `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_without_skip_git_repo_check`
+  - `tests/sandbox_cli.test.sh::codex_inner_repo_root_outside_mount_root_is_treated_as_non_git`
 
 #### Green（最小実装） (任意)
 - 変更予定ファイル:

@@ -159,6 +159,11 @@
   - 期待: 未Trust扱いで bootstrap 起動
   - 観測点: docker compose stub log
 
+- EC-004: mount-root が Git repo のサブディレクトリで、repo root が mount-root 外にある
+  - 条件: `.git` は検出されるが、`git rev-parse --show-toplevel` の結果が `abs_mount_root` の外
+  - 期待: 非Git扱いで YOLO 起動（trust 判定は行わない）+ stderr に警告を出す
+  - 観測点: docker compose stub log / stderr
+
 ## 用語（ドメイン語彙） (必須)
 - TERM-001: Trust = Codex が project config folders（例: `.codex/skills`）を読み込むことを許可する状態（`config.toml` の `[projects."..."] trust_level="trusted"`）
 - TERM-002: Bootstrap = Trust未確立時に trust onboarding を成立させるため、`approval_policy/sandbox_mode` を指定しないで起動するモード

@@ -1169,6 +1169,47 @@ codex_inner_non_git_runs_yolo_without_skip_git_repo_check() {
     assert_log_contains "$log_file" "/srv/mount/subdir"
 }
 
+codex_inner_repo_root_outside_mount_root_is_treated_as_non_git() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local repo_root="$tmp_dir/repo"
+    local root="$repo_root/submount"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+    : > "$repo_root/.git"
+
+    cat > "$COMPOSE_STUB_DIR/git" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-C" && "${3:-}" == "rev-parse" && "${4:-}" == "--show-toplevel" ]]; then
+    printf '%s\n' "${STUB_GIT_TOPLEVEL:?}"
+    exit 0
+fi
+
+exit 1
+STUB
+    chmod +x "$COMPOSE_STUB_DIR/git"
+    export STUB_GIT_TOPLEVEL="$repo_root"
+    hash -r
+
+    SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "--sandbox"
+    assert_log_contains "$log_file" "danger-full-access"
+    assert_log_contains "$log_file" "--ask-for-approval"
+    assert_log_contains "$log_file" "never"
+    assert_log_contains "$log_file" "--cd"
+    assert_log_contains "$log_file" "/srv/mount/subdir"
+    assert_log_not_contains "$log_file" "--skip-git-repo-check"
+    assert_stderr_contains "outside mount-root" "$RUN_STDERR"
+}
+
 codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
@@ -1305,6 +1346,7 @@ run_test "codex_inner_adds_cd_to_resume" codex_inner_adds_cd_to_resume
 run_test "codex_inner_runs_yolo_when_trusted" codex_inner_runs_yolo_when_trusted
 run_test "codex_inner_runs_bootstrap_when_untrusted_and_prints_hint" codex_inner_runs_bootstrap_when_untrusted_and_prints_hint
 run_test "codex_inner_non_git_runs_yolo_without_skip_git_repo_check" codex_inner_non_git_runs_yolo_without_skip_git_repo_check
+run_test "codex_inner_repo_root_outside_mount_root_is_treated_as_non_git" codex_inner_repo_root_outside_mount_root_is_treated_as_non_git
 run_test "codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap" codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap
 run_test "codex_rejects_conflicting_args_before_compose" codex_rejects_conflicting_args_before_compose
 run_test "codex_help_flag_after_double_dash_is_passed_to_codex" codex_help_flag_after_double_dash_is_passed_to_codex

@@ -431,6 +431,37 @@ bash tests/sandbox_cli.test.sh
 #### コミット
 - なし（禁止コマンドのため `git commit` は実施しない）
 
+---
+
+### 2026-01-26 02:40 - 02:50
+
+#### 対象
+- Review対応: mount-root が repo 内サブディレクトリのケース
+- AC/EC: EC-004
+
+#### 実施内容
+- repo root が mount-root 外の場合は non-git 扱いで YOLO 起動するよう修正。
+- stderr に警告を出す仕様を追加。
+- テストを追加して回帰防止。
+- 要件/設計/計画に EC-004 を追記。
+
+#### 実行コマンド / 結果
+```bash
+bash tests/sandbox_cli.test.sh
+
+結果: 全テスト成功
+```
+
+#### 変更したファイル
+- `host/sandbox` - mount-root 外の repo root を non-git 扱いに変更
+- `tests/sandbox_cli.test.sh` - `codex_inner_repo_root_outside_mount_root_is_treated_as_non_git` を追加
+- `.spec-dock/current/requirement.md` - EC-004 追加
+- `.spec-dock/current/design.md` - trust_key 判定の分岐を追記
+- `.spec-dock/current/plan.md` - EC-004/S05 の観測点を追記
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
 ## 遭遇した問題と解決 (任意)
 - 問題: ...
   - 解決: ...
