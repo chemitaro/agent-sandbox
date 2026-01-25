@@ -1,4 +1,4 @@
-projects = { "/srv/product" = { trust_level = "trusted" }, "/srv/product/taikyohiyou_project_issue-1319" = { trust_level = "trusted" } }
+projects = { "/srv/mount" = { trust_level = "trusted" }}
 
 model = "gpt-5.2"
 model_reasoning_effort = "xhigh"
