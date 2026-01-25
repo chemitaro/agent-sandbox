@@ -125,7 +125,7 @@
 - AC-003: 非Gitディレクトリでも `sandbox codex` が実行できる（proxy観測）
   - Actor/Role: 開発者
   - Given:
-    - `git rev-parse --show-toplevel` が失敗する（または `.git` が存在しない）
+    - `.git` が存在しない（= 非Gitディレクトリ）
   - When: `sandbox codex --workdir <non_git_dir>` を実行する
   - Then:
     - `docker compose exec ... codex resume` の引数に `--skip-git-repo-check` が含まれる

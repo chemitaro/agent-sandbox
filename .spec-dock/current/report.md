@@ -150,6 +150,24 @@ sed -n '1,260p' .spec-dock/current/plan.md
 
 ---
 
+### 2026-01-26 00:41 - 00:49
+
+#### 対象
+- Phase: Planning（review反映）
+- Docs: requirement
+
+#### 実施内容
+- AC-003（非Git）の Given が EC-002（`.git` 有り + rev-parse 失敗）と重なる矛盾を解消:
+  - AC-003 Given を「`.git` が存在しない（非Git）」に限定し、rev-parse 失敗ケースは EC-002 に委譲。
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md` - AC-003 Given を非Gitに限定
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
 ### YYYY-MM-DD HH:MM - HH:MM
 
 #### 対象
