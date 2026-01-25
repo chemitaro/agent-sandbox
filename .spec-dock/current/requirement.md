@@ -3,7 +3,7 @@
 機能ID: "FEAT-SANDBOX-CODEX-RUNTIME-TRUST-001"
 機能名: "sandbox codex の runtime trust 注入（最大権限デフォルトと skills 有効化）"
 関連Issue: []
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI"
 最終更新: "2026-01-25"
 ---
@@ -89,6 +89,8 @@
   - 対応: inline table で `projects={ "<path>"={trust_level="trusted"} }` を採用する。
 - R-002: 自動 trust 注入は、Codex の trust モデル（ユーザー承認）をバイパスする。
   - 対応: 本ツールの前提（外部隔離された環境で最大権限）として要件に明記し、opt-out は提供しない（Q-003=A）。
+- R-003: 非 git でも trust 注入するため、想定外の `.codex` が有効化される可能性がある（爆発半径が増える）
+  - 対応: 本ツールは隔離環境（Docker）前提であり、かつ mount-root ガード（広すぎる mount-root を拒否）を前提に許容する。運用上は “信頼してよいディレクトリ” でのみ `sandbox codex` を使う。
 
 ## 受け入れ条件（観測可能な振る舞い） (必須)
 - AC-001:
@@ -109,7 +111,7 @@
   - Given: git repo 直下に `.codex/skills/**/SKILL.md` が存在する
   - When: `sandbox codex` を起動する
   - Then: Codex が repo-scope skills を認識して利用可能になる
-  - 観測点: 手動確認（詳細手順は `.spec-dock/current/discussions/` に記載する）
+  - 観測点: 手動確認（詳細手順: `.spec-dock/current/discussions/manual-acceptance-ac002.md`）
   - 権限/認可条件: 上記 `-c projects=...` により、当該ディレクトリが trusted 扱いになること
 - AC-003:
   - Actor/Role: 利用者
@@ -141,6 +143,10 @@
   - 条件: trust 対象ディレクトリが mount-root の外（`/srv/mount` の外）になってしまう（異常系）
   - 期待: trust 注入は行わず警告する（安全側）。`sandbox codex` 自体は起動できる。
   - 観測点: stderr
+- EC-003:
+  - 条件: ユーザーが `-c/--config` で `projects` を上書きしようとする（例: `-c projects=...` / `-c projects.<...>=...`）
+  - 期待: `sandbox codex` はエラー終了し、理由（trust 注入のため `projects` override を禁止）を stderr に表示する。
+  - 観測点: exit code / stderr
 
 ## 用語（ドメイン語彙） (必須)
 - TERM-001: `runtime trust 注入` = `codex` 実行引数 `-c/--config` により、`projects` の trust を **その実行に限って**上書きすること

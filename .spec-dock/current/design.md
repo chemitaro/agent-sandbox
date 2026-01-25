@@ -3,7 +3,7 @@
 機能ID: "FEAT-SANDBOX-CODEX-RUNTIME-TRUST-001"
 機能名: "sandbox codex の runtime trust 注入（最大権限デフォルトと skills 有効化）"
 関連Issue: []
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI"
 最終更新: "2026-01-25"
 依存: ["requirement.md"]
@@ -94,6 +94,13 @@
       - 上記 2 件を重複排除した host 絶対パス
     - 非 git の場合:
       - `effective_host_dir` の 1 件（Q-002=B）
+  - 備考（重要）:
+    - `git rev-parse --git-common-dir` は **相対パス**を返し得るため、次の順で解決する:
+      1) `worktree_root_abs` を `--show-toplevel` で取得し、`realpath_safe` で正規化
+      2) `git_common_dir_raw` を `--git-common-dir` で取得
+      3) `git_common_dir_raw` が相対の場合は `worktree_root_abs/$git_common_dir_raw` として解決し、`realpath_safe` で正規化
+      4) `root_git_project_for_trust = dirname(git_common_dir_abs)`
+    - これにより、`CALLER_PWD` 基準で誤解決する事故を防ぐ
 - IF-003: `host/sandbox`（bash）: `to_container_path(abs_mount_root, host_abs_path) -> /srv/mount/...`
 
 ### 引数の組み立てルール（固定） (任意)
@@ -111,15 +118,19 @@
   - 代わりに、`projects` を inline table で注入する:
     - 例: `-c 'projects={\"/srv/mount/repo\"={trust_level=\"trusted\"}}'`
   - trust 対象が複数ある場合は、**1 回の `-c projects=...` でまとめて注入**する（重複は除外）。
+- ユーザーの `-c/--config` の扱い:
+  - `projects` を上書きする指定は **禁止**（`-c projects=...` / `-c projects.<...>=...` / `--config projects=...` など）。検出したらエラー終了する。
+    - 理由: `projects` は trust 注入に直結し、user override により「自動 trust（opt-out なし）」が破られ得るため。
+  - 上記以外の `-c/--config` は許可する（`FINAL_CODEX_ARGS` では user args を後ろに付けるため、同一キーの上書きは “後勝ち” になる）。
 - 引数の並び順:
   - `FINAL_CODEX_ARGS = INJECTED_ARGS + USER_ARGS`
-    - 目的: prompt（位置引数）の後ろに option をぶら下げてパースを壊す事故を避ける / ユーザーが明示指定した場合は後勝ちで上書きできる
+    - 目的: prompt（位置引数）の後ろに option をぶら下げてパースを壊す事故を避ける / ユーザーが明示指定した場合は後勝ちで上書きできる（ただし `projects` 上書きは例外で禁止）
 
 ## 変更計画（ファイルパス単位） (必須)
 - 追加（Add）:
-  - `.spec-dock/current/discussions/questions-for-user.md`: 未確定事項（Q-001〜）の確認用レポート
+  - `.spec-dock/current/discussions/manual-acceptance-ac002.md`: 手動受け入れ手順（AC-002: skills 認識）
 - 変更（Modify）:
-  - `host/sandbox`: `sandbox codex` の `codex resume` 引数組み立て（`-a/-s/-C/-c`）と trust dir 計算を追加
+  - `host/sandbox`: `sandbox codex` の `codex resume` 引数組み立て（`-a/-s/-C/-c`）と trust dir 計算を追加 + `print_help_codex` の注意書き追記
   - `tests/sandbox_cli.test.sh`: 永続 config 編集前提のテストを削除/置換し、新しい proxy 観測テストを追加
 - 削除（Delete）:
   - なし（必要ならテストケース単位で削除）
@@ -151,6 +162,8 @@
   - 対応: `-c 'projects={\"/srv/mount/...\"={trust_level=\"trusted\"}}'` の inline table 方式を採用する
 - R-002: 自動 trust 注入により意図しない `.codex` が有効化される可能性
   - 対応: Q-002=B の決定により、非 git でも trust 注入は行う（＝爆発半径は増える）。本ツールの前提（隔離環境で最大権限）として受容し、必要なら将来 opt-out を追加する（別機能）。
+- R-003: ユーザーが `-c/--config` で `projects` を上書きすると、trust 注入が無効化され得る
+  - 対応: `sandbox codex` は `projects` を上書きする user override（`-c projects=...` / `-c projects.<...>=...`）を **許可しない**（エラーにする）。それ以外の `-c` は許可する。
 
 ## 未確定事項（TBD） (必須)
 - 該当なし（Q-001〜Q-004 は 2026-01-25 に解消済み）
@@ -169,7 +182,7 @@
         ├── requirement.md            # Modify（Q 確定後）
         ├── design.md                 # Modify
         └── discussions/
-            └── questions-for-user.md # Add
+            └── manual-acceptance-ac002.md # Add
 ```
 
 ## UML図（PlantUML） (任意)
