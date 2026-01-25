@@ -26,7 +26,8 @@
 - [ ] S05: 非Gitでは YOLO + `--skip-git-repo-check` で起動する（+ `--cd`）
 - [ ] S06: `.git` はあるが rev-parse 失敗時は bootstrap + 警告で起動する（+ `--cd`）
 - [ ] S07: 競合引数はエラーで拒否し、compose を呼ばない
-- [ ] S08: 手動受け入れ（bootstrap→trust→yolo）を実施して report に残す
+- [ ] S08: `sandbox codex --help` の説明を更新する（自動切替/競合引数拒否を明記）
+- [ ] S09: 手動受け入れ（bootstrap→trust→yolo）を実施して report に残す
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S03
@@ -61,7 +62,8 @@
 - 追加/更新するテスト: `tests/sandbox_cli.test.sh::shell_does_not_write_codex_config`
 
 #### Red（失敗するテストを先に書く） (任意)
-- 既存の `shell_trusts_git_repo_root_for_codex` を、意図に沿う名称/期待値へ変更する（現状テストは要件と矛盾）
+- 既存の `shell_trusts_git_repo_root_for_codex` は “`sandbox shell` が Codex trust を書き込む” ことを期待しているが、`host/sandbox` の現実装と整合していない（仕様変更ではなく誤ったテストの是正）。
+- そのため、このステップでは当該テストを削除/置換し、`sandbox shell` が Codex config を書かないことを回帰防止として固定する。
 
 #### Green（最小実装） (任意)
 - 変更予定ファイル:
@@ -207,6 +209,7 @@
   - `codex resume` 引数に `--skip-git-repo-check` が含まれる
   - `--sandbox danger-full-access` と `--ask-for-approval never` が含まれる
   - `--cd ...` は含まれる
+- かつ: `--skip-git-repo-check` が付くのは “非Git（.git無し）” のときのみ（S06で否定を観測）
 - 観測点: docker compose stub log
 - 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_with_skip_git_repo_check`
 
@@ -245,6 +248,7 @@
   - stderr に “failed to detect git root (rev-parse)” 等の警告が出る
   - `codex resume` 引数に YOLO 引数が含まれない（bootstrap）
   - `--cd ...` は含まれる
+- かつ: `--skip-git-repo-check` は含まれない（`.git` があるため）
 - 観測点: stderr / docker compose stub log
 - 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap`
 
@@ -276,7 +280,9 @@
 
 #### 期待する振る舞い（テストケース） (必須)
 - Given: `SANDBOX_CODEX_NO_TMUX=1`
-- When: `sandbox codex ... -- --yolo`（または `--sandbox ...` 等）を実行する
+- When:
+  - `sandbox codex ... -- --yolo` を実行する
+  - 追加で短縮形の例として `sandbox codex ... -- -c foo=bar`（または `-C .` / `-a never` / `-s danger-full-access` / `-p bootstrap` のいずれか）を実行する
 - Then:
   - exit code != 0
   - stderr に “競合引数のため拒否” と `sandbox shell` の案内が出る
@@ -299,7 +305,39 @@
 
 ---
 
-### S08 — 手動受け入れ（bootstrap→trust→yolo）を実施して report に残す (必須)
+### S08 — `sandbox codex --help` の説明を更新する（自動切替/競合引数拒否を明記） (必須)
+- 対象: リポジトリ規約（CLI表面積変更時の help 更新）
+- 設計参照:
+  - 対象テスト: `tests/sandbox_cli.test.sh::help_codex_mentions_auto_bootstrap_and_conflicts`（新規）
+- このステップで「追加しないこと（スコープ固定）」:
+  - 実際の挙動変更（help 文言のみ）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `sandbox codex --help` を表示できる環境
+- When: `sandbox codex --help` を実行する
+- Then:
+  - “Trust 状態で bootstrap/yolo を自動切替” が明記されている
+  - “競合引数は拒否（sandbox shell を案内）” が明記されている
+- 観測点: help の stdout
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::help_codex_mentions_auto_bootstrap_and_conflicts`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`（`print_help_codex()`）
+  - Modify: `tests/sandbox_cli.test.sh`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S09 — 手動受け入れ（bootstrap→trust→yolo）を実施して report に残す (必須)
 - 対象: AC-002（手動観測）, AC-001（手動観測）
 - 設計参照:
   - `.spec-dock/current/discussions/manual-acceptance.md`
@@ -332,7 +370,7 @@
 
 ## 完了条件（Definition of Done） (必須)
 - 対象AC/ECがすべて満たされ、proxy テスト（stub観測）で保証されている
-- 手動受け入れ（S08）を実施し、観測結果が `.spec-dock/current/report.md` に残っている
+- 手動受け入れ（S09）を実施し、観測結果が `.spec-dock/current/report.md` に残っている
 - MUST NOT / OUT OF SCOPE を破っていない（外部ツールによる trust 付与 / config 機械編集をしていない）
 
 ## 省略/例外メモ (必須)

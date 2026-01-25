@@ -111,13 +111,20 @@
 ### 1) trust 判定対象（trust_key）の決定
 - Input: `ABS_MOUNT_ROOT`, `ABS_WORKDIR`
 - Algorithm（ホスト側）:
-  1) `git -C "$ABS_WORKDIR" rev-parse --show-toplevel` を実行
-  2) 成功:
-     - `repo_root_host = resolve_path(<stdout>)`
-     - `trust_key = compute_container_workdir "$ABS_MOUNT_ROOT" "$repo_root_host"`（例: `/srv/mount/<repo>`）
-  3) 失敗:
-     - stderr に警告（EC-002）
-     - `trust_key = ""`（非Git扱い）
+  1) `has_git_marker = find_git_marker("$ABS_WORKDIR")`（既存関数）
+  2) `.git` が無い（`has_git_marker=false`）:
+     - `git_state = non_git`
+     - `trust_key = ""`
+  3) `.git` がある（`has_git_marker=true`）:
+     - `git_state = git_present`
+     - `git -C "$ABS_WORKDIR" rev-parse --show-toplevel` を実行
+       - 成功:
+         - `git_state = git_ok`
+         - `repo_root_host = resolve_path(<stdout>)`
+         - `trust_key = compute_container_workdir "$ABS_MOUNT_ROOT" "$repo_root_host"`（例: `/srv/mount/<repo>`）
+       - 失敗:
+         - `git_state = git_error`（EC-002）
+         - `trust_key = ""`（※ただし non_git とは区別して扱う）
 
 ### 2) codex config の参照パス
 - `codex_config_host = "$SANDBOX_ROOT/.agent-home/.codex/config.toml"`
@@ -135,11 +142,13 @@
   - false positive を避ける（迷ったら `false` → bootstrap）
 
 ### 4) mode 判定（compute_codex_mode）
-- Git判定が成功（`trust_key != ""`）:
+- `git_state = non_git`:
+  - `mode = yolo`（`--skip-git-repo-check` を付与）
+- `git_state = git_ok`:
   - `is_codex_project_trusted(trust_key)` が true → `mode=yolo`
   - false → `mode=bootstrap`（stderrに案内を出す）
-- 非Git（`trust_key == ""`）:
-  - YOLO で起動する（`--skip-git-repo-check` を付与）
+- `git_state = git_error`:
+  - `mode=bootstrap`（stderr に警告 + Trust案内を出す）
 
 ### 5) `codex resume` 引数組み立て（build_codex_resume_args）
 - 常に付与:
@@ -147,8 +156,10 @@
 - mode=yolo の場合に付与:
   - `--ask-for-approval never`
   - `--sandbox danger-full-access`
-- 非Gitのとき:
+- `git_state=non_git` のとき:
   - `--skip-git-repo-check` を付与（Codexがgit必須の既定を回避するため）
+- `git_state=git_error` のとき:
+  - `--skip-git-repo-check` は付与しない（`.git` があるため）
 - passthrough:
   - `sandbox codex -- [args...]` の `[args...]` を後ろに連結
   - ただし競合引数（`--yolo/--profile/--config/--sandbox/--ask-for-approval/--cd` 等）はエラー

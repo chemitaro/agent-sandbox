@@ -115,6 +115,41 @@ rg -n "<FEATURE_ID>|<FEATURE_NAME>|<ISSUE_NUMBER_OR_URL>|<YOUR_NAME>|draft \\| a
 
 ---
 
+### 2026-01-26 00:23 - 00:41
+
+#### 対象
+- Phase: Planning（review反映）
+- Docs: requirement/design/plan
+
+#### 実施内容
+- レビュア指摘の矛盾修正:
+  - EC-002（`.git` があるが rev-parse 失敗）を “bootstrap + 警告（skip-gitは付けない）” に固定。
+  - 設計の詳細分岐を `find_git_marker` + `git_state` 前提に修正（non_git / git_ok / git_error）。
+- 実装計画の補強:
+  - help 更新ステップ（S08）を追加し、手動受け入れを S09 へ移動。
+  - S07 で短縮形（`-c/-C/-a/-s/-p`）を最低1つカバーする旨を追記。
+  - S01 を「誤った既存テストの是正」である旨を明記。
+
+#### 実行コマンド / 結果
+```bash
+sed -n '1,240p' .spec-dock/current/requirement.md
+sed -n '1,240p' .spec-dock/current/design.md
+sed -n '1,260p' .spec-dock/current/plan.md
+
+結果:
+- requirement/design/plan の矛盾（EC-002 分岐）を解消し、レビュー指摘を反映した。
+```
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md` - EC-002 の期待を明確化（bootstrap + warning + no-skip）
+- `.spec-dock/current/design.md` - `find_git_marker` + `git_state` 分岐に修正
+- `.spec-dock/current/plan.md` - help 更新ステップ追加、S01/S05/S06/S07 を補強
+
+#### コミット
+- なし（禁止コマンドのため `git commit` は実施しない）
+
+---
+
 ### YYYY-MM-DD HH:MM - HH:MM
 
 #### 対象

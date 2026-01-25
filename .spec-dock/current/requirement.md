@@ -148,7 +148,11 @@
 
 - EC-002: `.git` はあるが `git rev-parse --show-toplevel` が失敗する
   - 条件: `git` コマンド実行が失敗（例: Git不整合/権限/壊れたworktree）
-  - 期待: “Git判定不能” として扱い、stderr に警告を出し、fallback（container_workdirを基準）で起動する
+  - 期待:
+    - stderr に警告を出す（例: “failed to detect git root (rev-parse)”）
+    - Trust 判定は諦めて bootstrap で起動する（YOLO にしない）
+    - `--cd <container_workdir>` は通常どおり付与する
+    - `--skip-git-repo-check` は付与しない
   - 観測点: stderr / docker compose stub log
 
 - EC-003: Trust済みでも `trust_level` が `trusted` 以外
