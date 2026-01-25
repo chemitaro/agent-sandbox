@@ -1,15 +1,15 @@
-projects = { "/srv/mount" = { trust_level = "trusted" }}
 
 model = "gpt-5.2"
 model_reasoning_effort = "xhigh"
-sandbox_mode = "danger-full-access"
-approval_policy = "never"
 
 preferred_auth_method = "chatgpt"
 
 model_reasoning_summary = "none"
 
 notify = ["/opt/sandbox/tools/codex-notify/run"]
+
+[projects."/srv/mount"]
+trust_level = "trusted"
 
 [features]
 web_search_request = true
