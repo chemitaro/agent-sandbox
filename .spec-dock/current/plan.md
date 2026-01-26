@@ -1,114 +1,379 @@
 ---
 種別: 実装計画書
-機能ID: "<FEATURE_ID>"
-機能名: "<FEATURE_NAME>"
-関連Issue: ["<ISSUE_NUMBER_OR_URL>"]
-状態: "draft | approved"
-作成者: "<YOUR_NAME>"
-最終更新: "YYYY-MM-DD"
+機能ID: "SBX-CODEX-AUTO-BOOTSTRAP"
+機能名: "sandbox codex: Trust状態に応じた自動Bootstrap/YOLO切替"
+関連Issue: []
+状態: "approved"
+作成者: "Codex CLI (GPT-5.2)"
+最終更新: "2026-01-26"
 依存: ["requirement.md", "design.md"]
 ---
 
-# <FEATURE_ID> <FEATURE_NAME> — 実装計画（TDD: Red → Green → Refactor）
+# SBX-CODEX-AUTO-BOOTSTRAP sandbox codex: Trust状態に応じた自動Bootstrap/YOLO切替 — 実装計画（TDD: Red → Green → Refactor）
 
 ## この計画で満たす要件ID (必須)
-- 対象AC: AC-001, AC-002, ...
-- 対象EC: EC-001, ...
-- 対象制約（該当があれば）: ...
+- 対象AC: AC-001, AC-002, AC-003
+- 対象EC: EC-001, EC-002, EC-003
+  - （追加）EC-004 は S05 で観測（repo root が mount-root 外 → 非Git扱い）
+- 対象制約:
+  - sandbox が `config.toml` の `projects` を機械編集しない（MUST NOT）
+  - tests は stub のみ（実Docker/実Git を呼ばない）
 
 ## ステップ一覧（観測可能な振る舞い） (必須)
-- [ ] S01: ...
-- [ ] Sxx: ... (任意: 必要に応じて追加)
+- [ ] S01: `sandbox shell` が Codex config を生成しない（回帰防止）
+- [ ] S02: `sandbox codex` が常に `--cd <container_workdir>` を付与する
+- [ ] S03: Trust済みGitでは YOLO で起動する（+ `--cd`）
+- [ ] S04: 未TrustGitでは bootstrap で起動し、Trust案内を出す（+ `--cd`）
+- [ ] S05: 非Gitでは YOLO で起動する（+ `--cd`）
+- [ ] S06: `.git` はあるが rev-parse 失敗時は bootstrap + 警告で起動する（+ `--cd`）
+- [ ] S07: 競合引数はエラーで拒否し、compose を呼ばない
+- [ ] S08: `sandbox codex --help` の説明を更新する（自動切替/競合引数拒否を明記）
+- [ ] S09: 手動受け入れ（bootstrap→trust→yolo）を実施して report に残す
 
 ### 要件 ↔ ステップ対応表 (必須)
-- AC-001 → S01
-- AC-___ → Sxx (任意: 必要に応じて追加)
-- EC-___ → Sxx (任意: 必要に応じて追加)
-- （任意）非交渉制約 → Sxx（どのステップで担保/検証するか）
+- AC-001 → S03
+- AC-002 → S04
+- AC-003 → S05
+- EC-001 → S04（未Trust判定として bootstrap）
+- EC-002 → S06
+- EC-003 → S04（`trust_level != trusted` は未Trust扱い）
+- MUST NOT（config機械編集禁止）→ S01（回帰防止）+ 全ステップ（実装方針）
 
 ---
 
 ## 実装ステップ（各ステップは“観測可能な振る舞い”を1つ） (必須)
 
-### S01 — <観測可能な振る舞い> (必須)
-- 対象: AC-___ / EC-___
+### S01 — `sandbox shell` が Codex config を生成しない（回帰防止） (必須)
+- 対象: MUST NOT（config機械編集禁止の回帰防止）
 - 設計参照:
-  - 対象IF/API: IF-___ / API-___
-  - 対象テスト: `<test_file_path>::<test_name>`
+  - 対象IF: なし（現状確認の回帰防止）
+  - 対象テスト: `tests/sandbox_cli.test.sh::shell_does_not_write_codex_config`
 - このステップで「追加しないこと（スコープ固定）」:
-  - ...
+  - `sandbox shell` の挙動変更
 
 #### update_plan（着手時に登録） (必須)
-- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
-- 登録例:
-  - （調査）既存挙動/影響範囲の確認、設計参照の確認
-  - （Red）失敗するテストの追加/修正
-  - （Green）最小実装
-  - （Refactor）整理
-  - （品質ゲート）format/lint/test
-  - （報告）`.spec-dock/current/report.md` 更新
-  - （コミット）このステップの区切りでコミット
+- [ ] `update_plan` に作業ステップを登録した
 
 #### 期待する振る舞い（テストケース） (必須)
-- Given: ...
-- When: ...
-- Then: ...
-- 観測点（UI/HTTP/DB/Log など）: ...
-- 追加/更新するテスト: `<test_file_path>::<test_name>`
+- Given: `sandbox shell` を実行できるスタブ環境
+- When: `sandbox shell --mount-root <root> --workdir <workdir>` を実行する
+- Then:
+  - `.agent-home/.codex/config.toml` が新規作成されない（または既存が変更されない）
+- 観測点: ファイルの存在/内容（diff） + docker compose stub log
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::shell_does_not_write_codex_config`
 
 #### Red（失敗するテストを先に書く） (任意)
-- 期待する失敗:
-  - ...
+- 既存の `shell_trusts_git_repo_root_for_codex` は “`sandbox shell` が Codex trust を書き込む” ことを期待しているが、`host/sandbox` の現実装と整合していない（仕様変更ではなく誤ったテストの是正）。
+- そのため、このステップでは当該テストを削除/置換し、`sandbox shell` が Codex config を書かないことを回帰防止として固定する。
 
 #### Green（最小実装） (任意)
 - 変更予定ファイル:
-  - Add: `<path/...>`
-  - Modify: `<path/...>`
-- 追加する概念（このステップで導入する最小単位）:
-  - ...
-- 実装方針（最小で。余計な最適化は禁止）:
-  - ...
-
-#### Refactor（振る舞い不変で整理） (任意)
-- 目的:
-  - ...
-- 変更対象:
-  - ...
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - `sandbox shell` 自体は触らず、テストを “非生成/非変更” の回帰防止にする
 
 #### ステップ末尾（省略しない） (必須)
-- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
 - [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
-- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
-- [ ] コミットした（エージェント）
+- [ ] `update_plan` を更新し、このステップを完了にした
+- [ ] コミットは実施しない（禁止コマンドのため）
 
 ---
 
-### Sxx — <追加の観測可能な振る舞い> (任意)
-- （上の S01 と同じ構成で記載する。update_plan / 期待する振る舞い / ステップ末尾 は省略しない）
-  ...
+### S02 — `sandbox codex` が常に `--cd <container_workdir>` を付与する (必須)
+- 対象: AC-001/AC-002/AC-003（共通要件）
+- 設計参照:
+  - 対象IF: IF-003
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_adds_cd_to_resume`
+- このステップで「追加しないこと（スコープ固定）」:
+  - Trust 判定や YOLO 切替の実装（S03以降で実施）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `.git` が無いディレクトリ（非Git）で `sandbox codex` を実行する
+- When: `sandbox codex --mount-root <root> --workdir <workdir>` を実行する（inner: `SANDBOX_CODEX_NO_TMUX=1`）
+- Then:
+  - docker compose stub log の `codex resume` 引数に `--cd <container_workdir>` が含まれる
+- 観測点: docker compose stub log
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_adds_cd_to_resume`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - `run_compose_exec_codex` へ渡す `CODEX_ARGS` に、先頭で `--cd "$container_workdir"` を注入する
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S03 — Trust済みGitでは YOLO で起動する（+ `--cd`） (必須)
+- 対象: AC-001
+- 設計参照:
+  - 対象IF: IF-001, IF-002, IF-003
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_runs_yolo_when_trusted`
+- このステップで「追加しないこと（スコープ固定）」:
+  - 未Trust時の Trust案内（S04）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given:
+  - `workdir` が Git 配下（`<root>/repo/subdir`）で、`<root>/repo/.git` が存在する
+  - `git -C <workdir> rev-parse --show-toplevel` が `<root>/repo` を返す（stub）
+  - `.agent-home/.codex/config.toml` に `[projects.\"/srv/mount/repo\"] trust_level=\"trusted\"` がある（fixture）
+- When: `sandbox codex --mount-root <root> --workdir <root>/repo/subdir` を実行する
+- Then:
+  - `codex resume` 引数に `--sandbox danger-full-access` と `--ask-for-approval never` が含まれる
+  - `--cd /srv/mount/repo/subdir` が含まれる
+- 観測点: docker compose stub log
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_runs_yolo_when_trusted`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - show-toplevel を trust_key に変換し、config.toml から `trust_level="trusted"` を判定
+  - trusted の場合のみ YOLO 引数を注入
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S04 — 未TrustGitでは bootstrap で起動し、Trust案内を出す（+ `--cd`） (必須)
+- 対象: AC-002, EC-001, EC-003
+- 設計参照:
+  - 対象IF: IF-001, IF-002, IF-003
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_runs_bootstrap_when_untrusted_and_prints_hint`
+- このステップで「追加しないこと（スコープ固定）」:
+  - 非Gitの扱い（S05）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given:
+  - Git show-toplevel は成功する（stub）
+  - `config.toml` が (a) 無い、(b) 対象repoの entry が無い、(c) `trust_level!="trusted"` のいずれか
+- When: `sandbox codex ...` を実行する
+- Then:
+  - `codex resume` 引数に YOLO 引数（`--sandbox ...`, `--ask-for-approval ...`）が含まれない
+  - stderr に “Trust して再実行” の案内が出る
+  - `--cd ...` は含まれる
+- 観測点: docker compose stub log / stderr
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_runs_bootstrap_when_untrusted_and_prints_hint`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - `is_codex_project_trusted` を “strict” にし、判定できない場合は未Trust扱いにする
+  - 未Trust時は stderr で案内しつつ bootstrap 起動する
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S05 — 非Gitでは YOLO で起動する（+ `--cd`） (必須)
+- 対象: AC-003
+- 設計参照:
+  - 対象IF: IF-001, IF-003
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_without_skip_git_repo_check`
+- このステップで「追加しないこと（スコープ固定）」:
+  - `.git` があるケース（S06）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `.git` が存在しないディレクトリ
+- When: `sandbox codex ...` を実行する
+- Then:
+  - `codex resume` 引数に `--skip-git-repo-check` が含まれない
+  - `--sandbox danger-full-access` と `--ask-for-approval never` が含まれる
+  - `--cd ...` は含まれる
+- 観測点: docker compose stub log
+- 追加/更新するテスト:
+  - `tests/sandbox_cli.test.sh::codex_inner_non_git_runs_yolo_without_skip_git_repo_check`
+  - `tests/sandbox_cli.test.sh::codex_inner_repo_root_outside_mount_root_is_treated_as_non_git`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - `find_git_marker` が false の場合は non-git として扱い、YOLO で起動する
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S06 — `.git` はあるが rev-parse 失敗時は bootstrap + 警告で起動する（+ `--cd`） (必須)
+- 対象: EC-002
+- 設計参照:
+  - 対象IF: IF-001
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap`
+- このステップで「追加しないこと（スコープ固定）」:
+  - Trust 判定の精度改善（必要なら後続ステップで）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given:
+  - `.git` は存在する
+  - `git rev-parse --show-toplevel` が失敗する（stub）
+- When: `sandbox codex ...` を実行する
+- Then:
+  - stderr に “failed to detect git root (rev-parse)” 等の警告が出る
+  - `codex resume` 引数に YOLO 引数が含まれない（bootstrap）
+  - `--cd ...` は含まれる
+- かつ: `--skip-git-repo-check` は含まれない（`.git` があるため）
+- 観測点: stderr / docker compose stub log
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - `.git` は見つかるが rev-parse が失敗した場合は、trust 判定を諦め bootstrap にフォールバックする
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S07 — 競合引数はエラーで拒否し、compose を呼ばない (必須)
+- 対象: MUST（競合引数の拒否）
+- 設計参照:
+  - 対象IF: IF-003（競合引数ルール）
+  - 対象テスト: `tests/sandbox_cli.test.sh::codex_rejects_conflicting_args_before_compose`
+- このステップで「追加しないこと（スコープ固定）」:
+  - 競合引数の “許容” や “上書き” はしない（2Aの決定に反する）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `SANDBOX_CODEX_NO_TMUX=1`
+- When:
+  - `sandbox codex ... -- --yolo` を実行する
+  - 追加で短縮形の例として `sandbox codex ... -- -c foo=bar`（または `-C .` / `-a never` / `-s danger-full-access` / `-p bootstrap` のいずれか）を実行する
+- Then:
+  - exit code != 0
+  - stderr に “競合引数のため拒否” と `sandbox shell` の案内が出る
+  - docker compose stub log に `CMD=` が出ない（compose を呼んでいない）
+- 観測点: exit code / stderr / docker compose stub log
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::codex_rejects_conflicting_args_before_compose`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 実装方針:
+  - `run_compose_up` より前に `CODEX_ARGS` を走査し、競合引数があれば即エラー終了する
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S08 — `sandbox codex --help` の説明を更新する（自動切替/競合引数拒否を明記） (必須)
+- 対象: リポジトリ規約（CLI表面積変更時の help 更新）
+- 設計参照:
+  - 対象テスト: `tests/sandbox_cli.test.sh::help_codex_mentions_auto_bootstrap_and_conflicts`（新規）
+- このステップで「追加しないこと（スコープ固定）」:
+  - 実際の挙動変更（help 文言のみ）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `sandbox codex --help` を表示できる環境
+- When: `sandbox codex --help` を実行する
+- Then:
+  - “Trust 状態で bootstrap/yolo を自動切替” が明記されている
+  - “競合引数は拒否（sandbox shell を案内）” が明記されている
+- 観測点: help の stdout
+- 追加/更新するテスト: `tests/sandbox_cli.test.sh::help_codex_mentions_auto_bootstrap_and_conflicts`
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`（`print_help_codex()`）
+  - Modify: `tests/sandbox_cli.test.sh`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] `bash tests/sandbox_cli.test.sh` を実行し成功した
+- [ ] `.spec-dock/current/report.md` を更新した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
+
+---
+
+### S09 — 手動受け入れ（bootstrap→trust→yolo）を実施して report に残す (必須)
+- 対象: AC-002（手動観測）, AC-001（手動観測）
+- 設計参照:
+  - `.spec-dock/current/discussions/manual-acceptance.md`
+- このステップで「追加しないこと（スコープ固定）」:
+  - 自動テストで skills を直接観測する仕組みの追加（proxy + 手動受け入れを正とする）
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に作業ステップを登録した
+
+#### 期待する振る舞い（手動確認） (必須)
+- Given: `.codex/skills/**/SKILL.md` が存在する repo
+- When:
+  1) 未Trust状態で `sandbox codex` を実行する（bootstrap になる）
+  2) Codex UI で Trust を実行して終了する
+  3) 再度 `sandbox codex` を実行する（YOLO になる）
+- Then:
+  - 2回目は repo-local skills が認識される
+  - `~/.codex/config.toml` に `[projects.\"/srv/mount/<repo>\"] trust_level = \"trusted\"` が存在する
+- 観測点: `.spec-dock/current/discussions/manual-acceptance.md` に記載
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 手動確認の結果（成功/失敗・観測点）を `.spec-dock/current/report.md` に記録した
+- [ ] `update_plan` を更新した
+- [ ] コミットは実施しない（禁止コマンドのため）
 
 ---
 
 ## 未確定事項（TBD） (必須)
-- Q-001:
-  - 質問: TBD ...
-  - 選択肢:
-    - A: ...
-    - B: ...
-  - 推奨案（暫定）: ...
-  - 影響範囲: S__ / AC-__ / EC-__ / `design.md` / ...
-- Q-002:
-  - 質問: TBD ...
-  - 選択肢:
-    - A: ...
-    - B: ...
-  - 推奨案（暫定）: ...
-  - 影響範囲: ...
+- 該当なし
 
 ## 完了条件（Definition of Done） (必須)
-- 対象AC/ECがすべて満たされ、テストで保証されている
-- MUST NOT / OUT OF SCOPE を破っていない（追加機能を入れていない）
-- 品質ゲート（フォーマット/リント/テストのうち該当するもの）が満たされている
+- 対象AC/ECがすべて満たされ、proxy テスト（stub観測）で保証されている
+- 手動受け入れ（S09）を実施し、観測結果が `.spec-dock/current/report.md` に残っている
+- MUST NOT / OUT OF SCOPE を破っていない（外部ツールによる trust 付与 / config 機械編集をしていない）
 
 ## 省略/例外メモ (必須)
-- 該当なし
+- コミットは実施しない（禁止コマンドのため）

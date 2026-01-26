@@ -1,0 +1,221 @@
+---
+種別: 実装報告書
+機能ID: "FEAT-CODEX-TRUST-001"
+機能名: "コンテナ内Codexのスキル認識を安定化（複数worktree並行運用）"
+関連Issue: ["N/A"]
+状態: "draft"
+作成者: "Codex CLI"
+最終更新: "2026-01-24"
+依存: ["requirement.md", "design.md", "plan.md"]
+---
+
+# FEAT-CODEX-TRUST-001 コンテナ内Codexのスキル認識を安定化（複数worktree並行運用） — 実装報告（LOG）
+
+## 実装サマリー (任意)
+- [実装した内容の概要を2-3文で記載]
+
+## 実装記録（セッションログ） (必須)
+
+### 2026-01-24 18:00 - 18:10
+
+#### 対象
+- Planning: 要件定義の更新
+- AC/EC: AC-001..AC-004, EC-001..EC-002
+
+#### 実施内容
+- spec-dock ガイドと既存ドキュメントを確認
+- Q-003（trust 促しでの手動承認は許容）を反映し、`requirement.md` を整備
+- Q-003 用の discussion シートを追加
+
+#### 実行コマンド / 結果
+```bash
+sed / ls / rg / nl / date 等で `.spec-dock/current/*.md` を確認し、要件を更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/requirement.md` - Q-003反映、AC整理、前提/観測点/リスクの調整
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+- `.spec-dock/current/discussions/q003_codex_trust_prompt_allow.md` - Q-003 の議事録を追加
+
+#### コミット
+- 該当なし（Planning Phase）
+
+#### メモ
+- `@.spec-dock/current/discussions/qa-with-gpt52pro.md` は参照用の資料として `requirement.md` に記録済み
+
+---
+
+### 2026-01-24 18:10 - 18:57
+
+#### 対象
+- Planning: 設計（調査 → 設計書作成）
+- AC/EC: AC-001..AC-004, EC-001..EC-002
+
+#### 実施内容
+- Codex 公式ドキュメント（CLI/config/team-config/config-sample）と OSS 一次情報（config_loader）から、trust/skills の前提を再確認
+- `design.md` を作成し、設計方針（Codex 標準フロー + `--cd` で作業ディレクトリ固定）と変更計画/テスト戦略を具体化
+- 設計上の追加ヒアリング（Q-DES-001）を起票（後続で不要となりクローズ）
+
+#### 実行コマンド / 結果
+```bash
+web.run（公式ドキュメント参照）
+rg / sed / nl で repo 内の現状を確認し、`.spec-dock/current/design.md` を更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 設計（HOW）を作成
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+#### メモ
+- `tests/sandbox_cli.test.sh` に「sandbox が Codex config を作成する」前提のテストがあるため、AC-003 と整合する形へ修正が必要
+
+---
+
+### 2026-01-24 19:15 - 19:25
+
+#### 対象
+- Planning: 設計（追加調査 → 設計前提の補強）
+- トピック: Codex の trust 標準操作 / trust 後の skills 反映（再起動要否）
+
+#### 実施内容
+- Codex 公式ドキュメントから trust 設定（`projects.<path>.trust_level`）、trust 導線（onboarding prompt / `/approvals`）、skills のロード/再起動要件を再確認
+- 上流 OSS（GitHub issue）から「Codex が実行時に `config.toml` を更新する」報告を根拠として追加
+- 調査メモを discussion シート化し、`design.md` の As-Is 前提に追記
+
+#### 実行コマンド / 結果
+```bash
+web.run（公式ドキュメント / 上流 issue 参照）
+```
+
+#### 変更したファイル
+- `.spec-dock/current/discussions/codex_trust_standard_operation.md` - trust 標準操作と再起動要否の一次情報メモ
+- `.spec-dock/current/design.md` - As-Is の前提に上流挙動根拠（issue）と参照メモを追記
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
+### 2026-01-24 21:12 - 21:25
+
+#### 対象
+- Planning: 設計レビュー反映（ドキュメント修正）
+
+#### 実施内容
+- レビュアー指摘（観測点 / sandbox shell / `--cd` 重複 / report の整合）を反映
+- 受け入れ観測は「自動テストは `--cd` を proxy」「手動確認手順を残す」として固定
+- IF-001 に `--cd` 重複時の優先順位（ユーザー指定優先）を明記
+- `requirement.md` の観測点を、proxy + 手動確認へ具体化
+
+#### 実行コマンド / 結果
+```bash
+sed / nl で対象mdを確認し、apply_patch で更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 観測点/手動確認/`--cd` 重複時の扱い/sandbox shell の期待運用を追記
+- `.spec-dock/current/requirement.md` - 観測点を proxy + 手動確認へ具体化、状態を `approved` に更新
+- `.spec-dock/current/discussions/design-review-20260124.md` - レビュー指摘と対応/決定のメモを追加
+- `.spec-dock/current/report.md` - 本セッションの記録を追記、Q-DES-001 の整合を修正
+
+#### コミット
+- 該当なし（Planning Phase）
+
+#### メモ
+- テスト修正（`tests/sandbox_cli.test.sh:shell_trusts_git_repo_root_for_codex`）は実装フェーズで対応
+
+---
+
+### 2026-01-24 21:20 - 21:30
+
+#### 対象
+- Planning: 設計レビュー（軽微）反映（ドキュメント体裁・事故予防）
+
+#### 実施内容
+- 変更計画セクションの箇条書きインデント（体裁）を修正
+- IF-001 の `--cd` 重複回避条件に `--cd=<path>` と `-C<path>` を含める旨を追記（実装事故予防）
+- 追レビュー内容を discussion シートへ追記
+
+#### 実行コマンド / 結果
+```bash
+sed で確認し、apply_patch で更新
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 変更計画のインデント修正、IF-001 の検知対象を追記
+- `.spec-dock/current/discussions/design-review-20260124.md` - 追レビューと対応を追記
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
+### 2026-01-24 21:30 - 21:45
+
+#### 対象
+- Planning: 実装計画（TDD plan）作成
+
+#### 実施内容
+- 設計承認を反映し、`design.md` の状態を `approved` に更新
+- `plan.md` を TDD（Red→Green→Refactor）前提のステップ分割で作成（S01〜S03 + 任意S04）
+- コミット禁止（この環境の制約）を plan の「省略/例外メモ」に明記
+
+#### 実行コマンド / 結果
+```bash
+cat / sed / rg で既存テスト・実装を確認し、apply_patch で `plan.md` を作成
+```
+
+#### 変更したファイル
+- `.spec-dock/current/design.md` - 状態を `approved` に更新
+- `.spec-dock/current/plan.md` - 実装計画書を作成
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
+### 2026-01-24 21:45 - 22:00
+
+#### 対象
+- Planning: 実装計画（レビュー反映）
+
+#### 実施内容
+- plan レビュー指摘を反映
+  - S04 をテンプレ構造（update_plan / 期待する振る舞い / ステップ末尾）で書き切り
+  - AC-003 の担保として、`sandbox codex` 側の「config.toml を書き換えない」テスト追加を計画（S01）
+  - proxy + 手動受け入れ前提を DoD に反映し、手動受け入れ（S05）を計画に追加
+
+#### 実行コマンド / 結果
+```bash
+nl / sed で `.spec-dock/current/plan.md` を確認し、apply_patch で修正
+```
+
+#### 変更したファイル
+- `.spec-dock/current/plan.md` - S04 完成、S01 の対象拡張（shell+codex）、S05 追加、DoD 更新
+- `.spec-dock/current/report.md` - 本セッションの記録を追記
+
+#### コミット
+- 該当なし（Planning Phase）
+
+---
+
+## 遭遇した問題と解決 (任意)
+- 問題: ...
+  - 解決: ...
+
+## 学んだこと (任意)
+- ...
+- ...
+
+## 今後の推奨事項 (任意)
+- ...
+- ...
+
+## 省略/例外メモ (必須)
+- 該当なし
