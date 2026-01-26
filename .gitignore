@@ -4,18 +4,6 @@
 # Local agent settings (git-ignored, keep placeholder tracked)
 .agent-home/*
 !.agent-home/.keep
-!.agent-home/.codex/
-.agent-home/.codex/*
-!.agent-home/.codex/config.toml
-!.agent-home/.codex/AGENTS.md
-!.agent-home/.codex/prompts/
-!.agent-home/.codex/rules/
-!.agent-home/.opencode/
-.agent-home/.opencode/*
-!.agent-home/.opencode/opencode.json
-!.agent-home/.opencode/agent/
-!.agent-home/.opencode/command/
-!.agent-home/.opencode/plugin/
 .env
 
 # User-managed tools (git-ignored, keep this doc tracked)
