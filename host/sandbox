@@ -558,15 +558,35 @@ is_codex_project_trusted() {
     fi
 
     if awk -v key="$trust_key" '
-        BEGIN { in_section=0; found=0 }
-        $0 ~ /^\[projects\./ {
-            if (index($0, "[projects.\"" key "\"]") || index($0, "[projects.\047" key "\047]")) {
-                in_section=1; next
-            }
+        BEGIN { in_section=0; found=0; current="" }
+        $0 ~ /^[[:space:]]*\[projects\./ {
             in_section=0
+            current=""
+            line=$0
+            sub(/^[[:space:]]*\[projects\./, "", line)
+            sub(/[[:space:]]*$/, "", line)
+            if (line ~ /^"/) {
+                sub(/^"/, "", line)
+                sub(/"\][[:space:]]*$/, "", line)
+                current=line
+                in_section=1
+                next
+            }
+            if (line ~ /^\047/) {
+                sub(/^\047/, "", line)
+                sub(/\047\][[:space:]]*$/, "", line)
+                current=line
+                in_section=1
+                next
+            }
+            next
         }
         in_section && ($0 ~ /trust_level[[:space:]]*=[[:space:]]*\"trusted\"/ \
-            || $0 ~ /trust_level[[:space:]]*=[[:space:]]*'\''trusted'\''/) { found=1; exit }
+            || $0 ~ /trust_level[[:space:]]*=[[:space:]]*'\''trusted'\''/) {
+            if (current == key || index(key, current "/") == 1) {
+                found=1; exit
+            }
+        }
         END { exit found ? 0 : 1 }
     ' "$config_path"; then
         return 0
@@ -574,12 +594,22 @@ is_codex_project_trusted() {
 
     local compact
     compact="$(tr -d ' \t\r\n' < "$config_path")"
-    if [[ "$compact" == *"\"$trust_key\"={trust_level=\"trusted\"}"* || "$compact" == *"\"$trust_key\"={trust_level=\"trusted\"},"* ]]; then
-        return 0
-    fi
-    if [[ "$compact" == *"'$trust_key'={trust_level='trusted'}"* || "$compact" == *"'$trust_key'={trust_level='trusted'},"* ]]; then
-        return 0
-    fi
+    local candidate="$trust_key"
+    while [[ -n "$candidate" ]]; do
+        if [[ "$compact" == *"\"$candidate\"={trust_level=\"trusted\"}"* || "$compact" == *"\"$candidate\"={trust_level=\"trusted\"},"* ]]; then
+            return 0
+        fi
+        if [[ "$compact" == *"'$candidate'={trust_level='trusted'}"* || "$compact" == *"'$candidate'={trust_level='trusted'},"* ]]; then
+            return 0
+        fi
+        if [[ "$candidate" == "/" ]]; then
+            break
+        fi
+        candidate="${candidate%/*}"
+        if [[ -z "$candidate" ]]; then
+            candidate="/"
+        fi
+    done
 
     return 1
 }
