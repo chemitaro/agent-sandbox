@@ -3,7 +3,7 @@
 機能ID: "SBX-MOUNT-PROJECT-DIR"
 機能名: "コンテナ内マウント先を /srv/mount/<project> 配下にしてプロジェクト名を保持"
 関連Issue: []
-状態: "draft"
+状態: "approved"
 作成者: "Codex CLI (GPT-5)"
 最終更新: "2026-01-27"
 依存: ["requirement.md"]
@@ -178,4 +178,3 @@
     ├── sandbox_paths.test.sh   # Modify: /srv/mount/<project_dir> 期待へ更新
     └── sandbox_cli.test.sh     # Modify: PRODUCT_WORK_DIR / exec -w 期待へ更新
 ```
-
