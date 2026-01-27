@@ -627,13 +627,29 @@ compute_codex_mode() {
     if find_git_marker "$abs_workdir"; then
         if repo_root="$(git -C "$abs_workdir" rev-parse --show-toplevel 2>/dev/null)"; then
             repo_root="$(resolve_path "$repo_root")" || return 1
-            if ! is_subpath "$abs_mount_root" "$repo_root"; then
+
+            local trust_root="$repo_root"
+            local git_common_dir
+            if git_common_dir="$(git -C "$abs_workdir" rev-parse --git-common-dir 2>/dev/null)"; then
+                if [[ -n "$git_common_dir" ]]; then
+                    if [[ "$git_common_dir" != /* ]]; then
+                        git_common_dir="$repo_root/$git_common_dir"
+                    fi
+                    if git_common_dir="$(realpath_safe "$git_common_dir")"; then
+                        if [[ "$(basename "$git_common_dir")" == ".git" ]]; then
+                            trust_root="$(dirname "$git_common_dir")"
+                        fi
+                    fi
+                fi
+            fi
+
+            if ! is_subpath "$abs_mount_root" "$trust_root"; then
                 CODEX_GIT_STATE="non_git"
                 CODEX_MODE="yolo"
                 CODEX_WARNING="sandbox codex: git root is outside mount-root; treat as non-git"
             else
                 CODEX_GIT_STATE="git_ok"
-                CODEX_TRUST_KEY="$(compute_container_workdir "$abs_mount_root" "$repo_root")" || return 1
+                CODEX_TRUST_KEY="$(compute_container_workdir "$abs_mount_root" "$trust_root")" || return 1
                 if is_codex_project_trusted "$CODEX_TRUST_KEY"; then
                     CODEX_MODE="yolo"
                 else
