@@ -40,7 +40,7 @@ mount_root_only_sets_workdir() {
 
     local container_workdir
     container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
-    assert_eq "/srv/mount" "$container_workdir"
+    assert_eq "/srv/mount/root" "$container_workdir"
 }
 
 mount_root_and_workdir_maps_container_path() {
@@ -58,7 +58,7 @@ mount_root_and_workdir_maps_container_path() {
 
     local container_workdir
     container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
-    assert_eq "/srv/mount/sub/dir" "$container_workdir"
+    assert_eq "/srv/mount/root/sub/dir" "$container_workdir"
 }
 
 workdir_outside_mount_root_fails() {
@@ -118,7 +118,7 @@ relative_paths_resolve_from_caller_pwd() {
 
     local container_workdir
     container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
-    assert_eq "/srv/mount/sub" "$container_workdir"
+    assert_eq "/srv/mount/root/sub" "$container_workdir"
 }
 
 paths_with_spaces_are_handled() {
@@ -136,7 +136,7 @@ paths_with_spaces_are_handled() {
 
     local container_workdir
     container_workdir="$(compute_container_workdir "$ABS_MOUNT_ROOT" "$ABS_WORKDIR")"
-    assert_eq "/srv/mount/sub dir" "$container_workdir"
+    assert_eq "/srv/mount/root space/sub dir" "$container_workdir"
 }
 
 missing_mount_root_fails() {

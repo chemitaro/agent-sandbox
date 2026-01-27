@@ -386,7 +386,7 @@ up_injects_required_env() {
     assert_log_contains "$log_file" "CONTAINER_NAME=$expected_name"
     assert_log_contains "$log_file" "COMPOSE_PROJECT_NAME=$expected_compose_name"
     assert_log_contains "$log_file" "SOURCE_PATH=$(realpath "$root")"
-    assert_log_contains "$log_file" "PRODUCT_WORK_DIR=/srv/mount"
+    assert_log_contains "$log_file" "PRODUCT_WORK_DIR=/srv/mount/project"
     assert_log_contains "$log_file" "HOST_SANDBOX_PATH=$(realpath "$tmp_dir")"
     assert_log_contains "$log_file" "HOST_USERNAME=$(whoami)"
     assert_log_contains "$log_file" "PRODUCT_NAME=mount"
@@ -613,7 +613,7 @@ shell_exec_w() {
     run_cmd "$tmp_dir/host/sandbox" shell --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file" "CMD=docker compose up -d --build"
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir agent-sandbox /bin/zsh"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/subdir agent-sandbox /bin/zsh"
 }
 
 shell_injects_dod_env_vars() {
@@ -634,13 +634,13 @@ shell_injects_dod_env_vars() {
 
     run_cmd "$tmp_dir/host/sandbox" shell --mount-root "$root" --workdir "$root"
     assert_exit_code 0 "$RUN_CODE"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "CONTAINER_NAME=$expected_name"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "COMPOSE_PROJECT_NAME=$expected_compose_name"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "SOURCE_PATH=$(realpath "$root")"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "PRODUCT_WORK_DIR=/srv/mount"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "HOST_SANDBOX_PATH=$(realpath "$tmp_dir")"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "HOST_USERNAME=$(whoami)"
-    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount" "PRODUCT_NAME=mount"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "CONTAINER_NAME=$expected_name"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "COMPOSE_PROJECT_NAME=$expected_compose_name"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "SOURCE_PATH=$(realpath "$root")"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "PRODUCT_WORK_DIR=/srv/mount/project"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "HOST_SANDBOX_PATH=$(realpath "$tmp_dir")"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "HOST_USERNAME=$(whoami)"
+    assert_log_contains_after "$log_file" "CMD=docker compose exec -w /srv/mount/project" "PRODUCT_NAME=mount"
 }
 
 shell_does_not_write_codex_config() {
@@ -657,7 +657,7 @@ shell_does_not_write_codex_config() {
 
     run_cmd "$tmp_dir/host/sandbox" shell --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir agent-sandbox /bin/zsh"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/subdir agent-sandbox /bin/zsh"
 
     local codex_config="$tmp_dir/.agent-home/.codex/config.toml"
     if [[ -e "$codex_config" ]]; then
@@ -682,7 +682,24 @@ default_shell_ignores_option_value() {
 
     run_cmd "$tmp_dir/host/sandbox" --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/up agent-sandbox /bin/zsh"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/up agent-sandbox /bin/zsh"
+}
+
+unsafe_project_dir_is_sanitized_and_warns() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/my:proj"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" up --mount-root "$root" --workdir "$root"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "PRODUCT_WORK_DIR=/srv/mount/my_proj"
+    assert_stderr_contains "unsafe" "$RUN_STDERR"
 }
 
 compose_project_name_is_safe() {
@@ -1013,7 +1030,7 @@ codex_inner_runs_codex_resume_and_returns_to_zsh() {
     SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir" -- --workdir up
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file" "CMD=docker compose up -d --build"
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/subdir"
     assert_log_contains "$log_file" "codex"
     assert_log_contains "$log_file" "resume"
     assert_log_contains "$log_file" "exec\\ /bin/zsh"
@@ -1036,7 +1053,7 @@ codex_inner_without_double_dash_uses_default_args() {
     SANDBOX_CODEX_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" codex --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file" "CMD=docker compose up -d --build"
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/subdir"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/subdir"
     assert_log_contains "$log_file" "codex"
     assert_log_contains "$log_file" "resume"
     assert_log_contains "$log_file" "exec\\ /bin/zsh"
@@ -1059,7 +1076,7 @@ codex_inner_adds_cd_to_resume() {
     assert_log_contains "$log_file" "codex"
     assert_log_contains "$log_file" "resume"
     assert_log_contains "$log_file" "--cd"
-    assert_log_contains "$log_file" "/srv/mount/subdir"
+    assert_log_contains "$log_file" "/srv/mount/project/subdir"
 }
 
 codex_inner_runs_yolo_when_trusted() {
@@ -1078,7 +1095,7 @@ codex_inner_runs_yolo_when_trusted() {
 
     mkdir -p "$tmp_dir/.agent-home/.codex"
     cat > "$tmp_dir/.agent-home/.codex/config.toml" <<'TOML'
-[projects."/srv/mount/repo"]
+[projects."/srv/mount/mount-root/repo"]
 trust_level = "trusted"
 TOML
 
@@ -1104,7 +1121,7 @@ STUB
     assert_log_contains "$log_file" "--ask-for-approval"
     assert_log_contains "$log_file" "never"
     assert_log_contains "$log_file" "--cd"
-    assert_log_contains "$log_file" "/srv/mount/repo/subdir"
+    assert_log_contains "$log_file" "/srv/mount/mount-root/repo/subdir"
     assert_log_not_contains "$log_file" "--skip-git-repo-check"
 }
 
@@ -1126,7 +1143,7 @@ codex_inner_trusts_git_common_dir_root() {
 
     mkdir -p "$tmp_dir/.agent-home/.codex"
     cat > "$tmp_dir/.agent-home/.codex/config.toml" <<'TOML'
-[projects."/srv/mount/repo"]
+[projects."/srv/mount/mount-root/repo"]
 trust_level = "trusted"
 TOML
 
@@ -1158,7 +1175,7 @@ STUB
     assert_log_contains "$log_file" "--ask-for-approval"
     assert_log_contains "$log_file" "never"
     assert_log_contains "$log_file" "--cd"
-    assert_log_contains "$log_file" "/srv/mount/wt1/subdir"
+    assert_log_contains "$log_file" "/srv/mount/mount-root/wt1/subdir"
 }
 
 codex_inner_runs_bootstrap_when_untrusted_and_prints_hint() {
@@ -1195,7 +1212,7 @@ STUB
     assert_log_not_contains "$log_file" "--sandbox"
     assert_log_not_contains "$log_file" "--ask-for-approval"
     assert_log_contains "$log_file" "--cd"
-    assert_log_contains "$log_file" "/srv/mount/repo/subdir"
+    assert_log_contains "$log_file" "/srv/mount/mount-root/repo/subdir"
     assert_stderr_contains "Trust" "$RUN_STDERR"
 }
 
@@ -1219,7 +1236,7 @@ codex_inner_non_git_runs_yolo_without_skip_git_repo_check() {
     assert_log_contains "$log_file" "--ask-for-approval"
     assert_log_contains "$log_file" "never"
     assert_log_contains "$log_file" "--cd"
-    assert_log_contains "$log_file" "/srv/mount/subdir"
+    assert_log_contains "$log_file" "/srv/mount/project/subdir"
 }
 
 codex_inner_repo_root_outside_mount_root_is_treated_as_non_git() {
@@ -1258,7 +1275,7 @@ STUB
     assert_log_contains "$log_file" "--ask-for-approval"
     assert_log_contains "$log_file" "never"
     assert_log_contains "$log_file" "--cd"
-    assert_log_contains "$log_file" "/srv/mount/subdir"
+    assert_log_contains "$log_file" "/srv/mount/submount/subdir"
     assert_log_not_contains "$log_file" "--skip-git-repo-check"
     assert_stderr_contains "outside mount-root" "$RUN_STDERR"
 }
@@ -1382,6 +1399,7 @@ run_test "shell_exec_w" shell_exec_w
 run_test "shell_injects_dod_env_vars" shell_injects_dod_env_vars
 run_test "shell_does_not_write_codex_config" shell_does_not_write_codex_config
 run_test "default_shell_ignores_option_value" default_shell_ignores_option_value
+run_test "unsafe_project_dir_is_sanitized_and_warns" unsafe_project_dir_is_sanitized_and_warns
 run_test "compose_project_name_is_safe" compose_project_name_is_safe
 run_test "build_only" build_only
 run_test "build_no_cache" build_no_cache

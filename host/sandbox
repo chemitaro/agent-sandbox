@@ -7,6 +7,7 @@ CODEX_ARGS=()
 CODEX_HAS_DOUBLE_DASH=false
 TOOLS_UPDATE_LOCK_DIR=""
 MAX_UP_LEVEL=1
+PROJECT_DIR_WARNED=""
 FORBIDDEN_MOUNT_ROOTS=(
     "/"
     "$HOME"
@@ -205,6 +206,9 @@ prepare_compose_env() {
     local compose_project_name="$2"
     local abs_mount_root="$3"
 
+    local container_mount_root
+    container_mount_root="$(compute_container_mount_root "$abs_mount_root")" || return 1
+
     local tz_env=()
     if resolve_tz_injection; then
         tz_env=("TZ=$(detect_timezone)")
@@ -217,7 +221,7 @@ prepare_compose_env() {
         "CONTAINER_NAME=$container_name"
         "COMPOSE_PROJECT_NAME=$compose_project_name"
         "SOURCE_PATH=$abs_mount_root"
-        "PRODUCT_WORK_DIR=/srv/mount"
+        "PRODUCT_WORK_DIR=$container_mount_root"
         "HOST_SANDBOX_PATH=$SANDBOX_ROOT"
         "HOST_USERNAME=$host_username"
         "PRODUCT_NAME=mount"
@@ -523,6 +527,37 @@ is_subpath() {
     return 1
 }
 
+compute_project_dir() {
+    local abs_mount_root="$1"
+    local base
+    base="$(basename "$abs_mount_root")"
+    local raw="$base"
+    local sanitized="$raw"
+
+    sanitized="${sanitized//:/_}"
+    sanitized="$(printf '%s' "$sanitized" | tr -d '[:cntrl:]')"
+
+    if [[ -z "$sanitized" || "$sanitized" == "/" ]]; then
+        sanitized="dir"
+    fi
+
+    if [[ "$sanitized" != "$raw" ]]; then
+        if [[ "${PROJECT_DIR_WARNED:-}" != "$abs_mount_root" ]]; then
+            echo "sandbox: project dir \"$raw\" is unsafe; using \"$sanitized\"" >&2
+            PROJECT_DIR_WARNED="$abs_mount_root"
+        fi
+    fi
+
+    echo "$sanitized"
+}
+
+compute_container_mount_root() {
+    local abs_mount_root="$1"
+    local project_dir
+    project_dir="$(compute_project_dir "$abs_mount_root")" || return 1
+    echo "/srv/mount/$project_dir"
+}
+
 compute_container_workdir() {
     local abs_mount_root="$1"
     local abs_workdir="$2"
@@ -532,13 +567,16 @@ compute_container_workdir() {
         return 1
     fi
 
+    local container_mount_root
+    container_mount_root="$(compute_container_mount_root "$abs_mount_root")" || return 1
+
     if [[ "$abs_mount_root" == "$abs_workdir" ]]; then
-        echo "/srv/mount"
+        echo "$container_mount_root"
         return 0
     fi
 
     local rel="${abs_workdir#$abs_mount_root/}"
-    echo "/srv/mount/$rel"
+    echo "$container_mount_root/$rel"
 }
 
 codex_config_path() {
