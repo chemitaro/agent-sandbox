@@ -19,8 +19,8 @@
   - `bash tests/sandbox_cli.test.sh` が成功する
 
 ## ステップ一覧（観測可能な振る舞い） (必須)
-- [ ] S01: Dockerfile の TERM/COLORTERM をテストで固定する（Red）
-- [ ] S02: Dockerfile に TERM/COLORTERM を恒久化しテストを通す（Green/Refactor）
+- [x] S01: Dockerfile の TERM/COLORTERM をテストで固定する（Red）
+- [x] S02: Dockerfile に TERM/COLORTERM を恒久化しテストを通す（Green/Refactor）
 - [ ] S03: 手動受け入れ（compose exec / docker exec -it）を実施し report に残す
 
 ### 要件 ↔ ステップ対応表 (必須)

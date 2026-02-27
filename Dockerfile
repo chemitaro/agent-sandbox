@@ -54,6 +54,7 @@ RUN apt update && apt install -y less \
   dnsutils \
   aggregate \
   jq \
+  ncurses-term \
   curl \
   ca-certificates \
   lsb-release \
@@ -117,6 +118,8 @@ RUN mkdir -p /home/node/.npm/_cache
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
+ENV TERM=xterm-256color
+ENV COLORTERM=truecolor
 
 # Default powerline10k theme
 RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
