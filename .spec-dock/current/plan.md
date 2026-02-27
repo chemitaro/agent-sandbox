@@ -1,47 +1,42 @@
 ---
 種別: 実装計画書
-機能ID: "CHORE-TUI-COLOR-001"
-機能名: "コンテナ内の色数（TERM/COLORTERM）を安定化して Codex CLI の表示崩れを解消"
-関連Issue: ["N/A"]
-状態: "draft"
-作成者: "Codex CLI"
-最終更新: "2026-02-26"
+機能ID: "<FEATURE_ID>"
+機能名: "<FEATURE_NAME>"
+関連Issue: ["<ISSUE_NUMBER_OR_URL>"]
+状態: "draft | approved"
+作成者: "<YOUR_NAME>"
+最終更新: "YYYY-MM-DD"
 依存: ["requirement.md", "design.md"]
 ---
 
-# CHORE-TUI-COLOR-001 コンテナ内の色数（TERM/COLORTERM）を安定化して Codex CLI の表示崩れを解消 — 実装計画（TDD: Red → Green → Refactor）
+# <FEATURE_ID> <FEATURE_NAME> — 実装計画（TDD: Red → Green → Refactor）
 
 ## この計画で満たす要件ID (必須)
-- 対象AC: AC-001, AC-002, AC-003, AC-004
-- 対象EC: EC-001（必要なら）, EC-002（注記のみ）
-- 対象制約:
-  - `./host/sandbox` 既存フローを壊さない
-  - `bash tests/sandbox_cli.test.sh` が成功する
+- 対象AC: AC-001, AC-002, ...
+- 対象EC: EC-001, ...
+- 対象制約（該当があれば）: ...
 
 ## ステップ一覧（観測可能な振る舞い） (必須)
-- [x] S01: Dockerfile の TERM/COLORTERM をテストで固定する（Red）
-- [x] S02: Dockerfile に TERM/COLORTERM を恒久化しテストを通す（Green/Refactor）
-- [ ] S03: 手動受け入れ（compose exec / docker exec -it）を実施し report に残す
+- [ ] S01: ...
+- [ ] Sxx: ... (任意: 必要に応じて追加)
 
 ### 要件 ↔ ステップ対応表 (必須)
-- AC-001 → S02, S03
-- AC-002 → S02, S03
-- AC-003 → S03
-- AC-004 → S01, S02
-- EC-001 → S02（必要なら `ncurses-term` 等を追加）
-- 非交渉制約 → S02（既存テスト実行で担保）
+- AC-001 → S01
+- AC-___ → Sxx (任意: 必要に応じて追加)
+- EC-___ → Sxx (任意: 必要に応じて追加)
+- （任意）非交渉制約 → Sxx（どのステップで担保/検証するか）
 
 ---
 
 ## 実装ステップ（各ステップは“観測可能な振る舞い”を1つ） (必須)
 
-### S01 — Dockerfile の TERM/COLORTERM 恒久化をテストで検査できる (必須)
-- 対象: AC-004
+### S01 — <観測可能な振る舞い> (必須)
+- 対象: AC-___ / EC-___
 - 設計参照:
-  - 対象IF: IF-ENV-001（`TERM`/`COLORTERM`）
-  - 対象テスト: `tests/sandbox_term_env.test.sh`
+  - 対象IF/API: IF-___ / API-___
+  - 対象テスト: `<test_file_path>::<test_name>`
 - このステップで「追加しないこと（スコープ固定）」:
-  - Dockerfile/compose/host の実動作変更（テスト追加のみ）
+  - ...
 
 #### update_plan（着手時に登録） (必須)
 - [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
@@ -55,11 +50,11 @@
   - （コミット）このステップの区切りでコミット
 
 #### 期待する振る舞い（テストケース） (必須)
-- Given: リポジトリに `Dockerfile` が存在する
-- When: `bash tests/sandbox_term_env.test.sh` を実行する
-- Then: `Dockerfile` に `TERM`/`COLORTERM` の `ENV` がないため、テストが失敗する（Red）
-- 観測点: exit code / stderr
-- 追加/更新するテスト: `tests/sandbox_term_env.test.sh`
+- Given: ...
+- When: ...
+- Then: ...
+- 観測点（UI/HTTP/DB/Log など）: ...
+- 追加/更新するテスト: `<test_file_path>::<test_name>`
 
 #### Red（失敗するテストを先に書く） (任意)
 - 期待する失敗:
@@ -88,64 +83,27 @@
 
 ---
 
-### S02 — コンテナ作成時点で TERM/COLORTERM が恒久化されている（設定が退行しない） (必須)
-- 対象: AC-001, AC-002, AC-004, EC-001（必要なら）
-- 設計参照:
-  - 対象IF: IF-ENV-001（`TERM`/`COLORTERM`）
-  - 対象テスト: `tests/sandbox_term_env.test.sh`
-- このステップで「追加しないこと（スコープ固定）」:
-  - `host/sandbox` の入口補正（今回はやらない）
-  - Ghostty terminfo 注入（完全一致は不要）
-
-#### update_plan（着手時に登録） (必須)
-- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
-
-#### 期待する振る舞い（テストケース） (必須)
-- Given: `tests/sandbox_term_env.test.sh` が存在する
-- When: `Dockerfile` に `ENV TERM=xterm-256color` と `ENV COLORTERM=truecolor` を追加する
-- Then: `bash tests/sandbox_term_env.test.sh` が成功する
-- 観測点: exit code
-- 追加/更新するテスト: `tests/sandbox_term_env.test.sh`
-
-#### ステップ末尾（省略しない） (必須)
-- [ ] `bash tests/sandbox_term_env.test.sh` を実行し、成功した
-- [ ] `bash tests/sandbox_cli.test.sh` を実行し、成功した
-- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
-- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
-- [ ] コミットした（エージェント）
-
----
-
-### S03 — 手動受け入れで tput colors=256 を確認できる (必須)
-- 対象: AC-001, AC-002, AC-003
-- 設計参照:
-  - 手動受け入れ手順（design.md の「手動受け入れ」）
-- このステップで「追加しないこと（スコープ固定）」:
-  - 追加の自動テストや機能追加（必要になった場合は S04 として新規追加）
-
-#### update_plan（着手時に登録） (必須)
-- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
-
-#### 期待する振る舞い（手動受け入れ） (必須)
-- Given: `./host/sandbox up` で最新コンテナを起動できる
-- When: 以下を実行する
-  - `docker compose exec agent-sandbox /bin/zsh -lc 'echo TERM=$TERM; echo COLORTERM=$COLORTERM; tput colors'`
-  - `docker exec -it <container> /bin/zsh -lc 'echo TERM=$TERM; echo COLORTERM=$COLORTERM; tput colors'`
-  - （任意）コンテナ内で Codex CLI を起動し目視する
-- Then:
-  - どちらの入口でも `TERM=xterm-256color` / `COLORTERM=truecolor` / `tput colors=256` を満たす
-  - Codex CLI の表示崩れが解消している
-- 観測点: コマンド出力 / 目視結果
-
-#### ステップ末尾（省略しない） (必須)
-- [ ] 手動受け入れ結果を `.spec-dock/current/report.md` に記録した（秘匿情報はマスク）
-- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
-- [ ] コミットした（エージェント）
+### Sxx — <追加の観測可能な振る舞い> (任意)
+- （上の S01 と同じ構成で記載する。update_plan / 期待する振る舞い / ステップ末尾 は省略しない）
+  ...
 
 ---
 
 ## 未確定事項（TBD） (必須)
-- 該当なし（requirement.md の Q-001/Q-002 は解消済み）
+- Q-001:
+  - 質問: TBD ...
+  - 選択肢:
+    - A: ...
+    - B: ...
+  - 推奨案（暫定）: ...
+  - 影響範囲: S__ / AC-__ / EC-__ / `design.md` / ...
+- Q-002:
+  - 質問: TBD ...
+  - 選択肢:
+    - A: ...
+    - B: ...
+  - 推奨案（暫定）: ...
+  - 影響範囲: ...
 
 ## 完了条件（Definition of Done） (必須)
 - 対象AC/ECがすべて満たされ、テストで保証されている
