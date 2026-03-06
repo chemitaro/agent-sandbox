@@ -966,6 +966,10 @@ ensure_tmux_available() {
         echo "tmux command not found" >&2
         return 1
     fi
+    if ! tmux -V >/dev/null 2>&1; then
+        echo "tmux command not found" >&2
+        return 1
+    fi
     return 0
 }
 

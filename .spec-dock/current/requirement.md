@@ -1,181 +1,158 @@
 ---
 種別: 要件定義書
-機能ID: "CHORE-TUI-COLOR-001"
-機能名: "コンテナ内の色数（TERM/COLORTERM）を安定化して Codex CLI の表示崩れを解消"
+機能ID: "CHORE-NODE-LTS-001"
+機能名: "Docker イメージで導入する Node.js を 20 系固定から Active LTS へ更新"
 関連Issue: ["N/A"]
 状態: "draft"
 作成者: "Codex CLI"
-最終更新: "2026-02-26"
+最終更新: "2026-03-07"
 ---
 
-# CHORE-TUI-COLOR-001 コンテナ内の色数（TERM/COLORTERM）を安定化して Codex CLI の表示崩れを解消 — 要件定義（WHAT / WHY）
+# CHORE-NODE-LTS-001 Docker イメージで導入する Node.js を 20 系固定から Active LTS へ更新 — 要件定義（WHAT / WHY）
 
 ## 目的（ユーザーに見える成果 / To-Be） (必須)
-- Docker コンテナ内で Codex CLI を起動したときに、端末が低色数（8色/16色）へフォールバックせず、少なくとも 256 色以上の色数前提で表示される。
-- これにより「同じテーマなのにコンテナ内だけ見にくい/色が崩れる」問題を解消する。
+- Docker イメージ内で導入される Node.js が 20 系固定ではなく、2026-03-07 時点の最新安定版解釈である Active LTS 系になる。
+- 利用者は追加設定なしで、より新しい安定版 Node.js を前提に環境を起動できる。
 
 ## 背景・現状（As-Is / 調査メモ） (必須)
 - 現状の挙動（事実）:
-  - ホスト（macOS + Ghostty）で Codex CLI を使う場合は表示に問題がない。
-  - Docker コンテナ内で Codex CLI を使うと、同一テーマでも色味が崩れて見にくい。
-  - 現状のコンテナ内では `TERM=xterm` となっており、`tput colors` が `8` を返す（= 8色相当の能力広告になっている）。
-  - `TERM=xterm-256color`（+必要なら `COLORTERM=truecolor`）にすると `tput colors` が `256` になり、色数問題は解消方向に向かう。
+  - `Dockerfile` では NodeSource の `setup_20.x` を実行しており、Node.js 20 系に固定されている。
+  - `package.json` の `engines.node` は `>=20.0.0` であり、20 より新しい LTS 系へ更新しても直ちに矛盾しない。
+  - 2026-03-07 時点の Node.js 公式リリース情報では `24.x` が Active LTS、`25.x` が Current である。
 - 現状の課題（困っていること）:
-  - コンテナ内の Codex CLI の配色が崩れ、可読性が著しく低下する。
+  - Docker イメージの Node.js が古く、最新安定版を使いたいというユーザー要望を満たせていない。
+  - `setup_20.x` の固定により、意図せず旧系列に留まり続ける。
 - 再現手順（最小で）:
-  1) `./host/sandbox up`
-  2) `docker compose exec agent-sandbox /bin/zsh -lc 'echo TERM=$TERM; echo COLORTERM=$COLORTERM; tput colors'`
-  3) `tput colors` が `8` になることを確認する
-  4) `docker exec -it <container> /bin/zsh -lc 'echo TERM=$TERM; echo COLORTERM=$COLORTERM; tput colors'`
-  5) `tput colors` が `8` になることを確認する
-  6) コンテナ内で Codex CLI を起動し、表示が崩れていることを確認する
+  1) `Dockerfile` を開く
+  2) `setup_20.x` を参照していることを確認する
+  3) イメージをビルドしてコンテナ内で `node --version` を確認すると 20 系になる
 - 観測点（どこを見て確認するか）:
-  - CLI/Log:
-    - `echo "$TERM"`, `echo "$COLORTERM"`
-    - `tput colors`
-    - （必要に応じて）`infocmp "$TERM"` の成否
   - 設定:
-    - `Dockerfile` / `docker-compose.yml` の差分（恒久化した設定が残っていること）
+    - `Dockerfile` の NodeSource セットアップ URL
+    - Node.js バージョン説明コメント
+  - CLI/Log:
+    - コンテナ内の `node --version`
+    - 既存 Bash テスト結果
 - 実際の観測結果（貼れる範囲で）:
-  - ホスト（本リポの実行環境）:
-    - `TERM=xterm-ghostty`
-    - `COLORTERM=truecolor`
-  - コンテナ（現状、`docker compose exec`）:
-    - `TERM=xterm`
-    - `COLORTERM=`（未設定）
-    - `tput colors` → `8`
-  - コンテナ（現状、`docker exec -it`）:
-    - `TERM=xterm`
-    - `COLORTERM=`（未設定）
-    - `tput colors` → `8`
-  - コンテナ（上書きして確認）:
-    - `TERM=xterm-256color`
-    - `COLORTERM=truecolor`
-    - `tput colors` → `256`
+  - `Dockerfile:11-14`
+    - `# Install Node.js 20`
+    - `curl -fsSL https://deb.nodesource.com/setup_20.x | bash -`
+  - `package.json:6-8`
+    - `"node": ">=20.0.0"`
 - 情報源（ヒアリング/調査の根拠）:
-  - ヒアリング:
-    - ユーザー申告（Ghostty/コンテナ内で色味が変わる）
-    - 参考: ChatGPT 共有メモ（`TERM/COLORTERM` 低下が主因、`xterm-256color` 推奨）
-  - コード/設定:
-    - `docker-compose.yml`（`tty: true` でも `TERM=xterm` になることの確認）
-    - `Dockerfile`（コンテナのベース環境・パッケージ・ENV 方針の確認）
-    - `host/sandbox`（`docker compose exec` を起点としていることの確認）
-  - 実行ログ:
-    - `docker compose exec ... tput colors` の観測値
+  - コード:
+    - `/srv/mount/box/Dockerfile:11` - Node.js 20 固定コメント
+    - `/srv/mount/box/Dockerfile:13` - `setup_20.x` 実行箇所
+    - `/srv/mount/box/package.json:6` - `engines.node >=20.0.0`
+  - 調査:
+    - Node.js 公式 previous releases（2026-03-07 時点で `24.x = Active LTS`, `25.x = Current`）
+    - NodeSource 配布スクリプト（`setup_lts.x` / `setup_current.x` の実体確認）
 
 ## 対象ユーザー / 利用シナリオ (任意)
 - 主な利用者（ロール）:
-  - このリポジトリの `sandbox` 環境でコンテナを起動し、コンテナ内で Codex CLI を利用する開発者
+  - このリポジトリの Docker ベース開発環境を使う開発者
 - 代表的なシナリオ:
-  - `./host/sandbox up` → `./host/sandbox shell` / `./host/sandbox codex` → コンテナ内で Codex CLI を利用する
+  - `sandbox up` で環境を作成し、コンテナ内で Node.js ベースの CLI を利用する
 
 ## スコープ（暴走防止のガードレール） (必須)
 - MUST（必ずやる）:
-  - コンテナ内の端末能力（色数）を、少なくとも 256 色前提で安定して認識できるようにする
-    - `TERM` を `xterm-256color` 相当にする（`tput colors=256` を保証）
-    - `COLORTERM=truecolor` を設定し、TrueColor も検出できるようにする（常時設定）
-  - 退行防止として、恒久化した設定（`TERM/COLORTERM`）が将来消えないことを担保するテストを追加/更新する（方法は `design.md` で確定）
-  - 既存の `sandbox` CLI のコマンド体系・動作を維持する（`up/shell/codex/...`）
+  - Docker イメージの Node.js インストール設定を 20 系固定から 24 系固定へ更新する
+  - 「最新安定版」の意味を Active LTS として固定する
+  - 退行防止として、Dockerfile の Node.js 系列を検査する Bash テストを追加または更新する
+  - イメージ再ビルド後に `node --version` が `v24.` 系で始まることを確認する
 - MUST NOT（絶対にやらない／追加しない）:
-  - Ghostty（端末エミュレータ）側の設定変更を前提にしない
-  - `TERM=xterm-ghostty` を前提とした完全一致や、Ghostty 固有 terminfo の注入を必須にしない
-  - Codex CLI 本体のテーマ仕様（配色定義）を変更しない
-  - `.env` の機密値（API キー等）を変更/露出しない
+  - `Current` 系 (`25.x`) へ上げない
+  - `package.json` の依存や CLI の導入対象を変更しない
+  - Docker Compose のサービス構成や `host/sandbox` の CLI 仕様を変えない
 - OUT OF SCOPE（今回やらない）:
-  - “ローカルと完全一致” の見た目（パレット/ガンマまで含めた完全一致）
-  - 端末背景色の取得（OSC 11 等）やテーマ自動切替などの高度機能
-  - tmux/screen/ssh 等の特殊経路ごとの個別最適化（必要なら別タスク）
+  - npm パッケージの一斉アップデート
+  - `package.json` の `engines` を厳密に `24.x` へ狭める変更
+  - 複数 Node バージョン切替機構（nvm/fnm/volta 等）の導入
 
 ## 非交渉制約（守るべき制約） (必須)
-- `./host/sandbox up|shell|codex|status|stop|down` の既存フローを壊さないこと
-- コンテナは引き続き `user: node` で動作すること（権限/永続化の前提を崩さない）
+- 既存の Docker ベース開発フロー（`sandbox up/shell/status/down`）を壊さないこと
 - 既存テスト（少なくとも `bash tests/sandbox_cli.test.sh`）が成功すること
-- セキュリティ: `.env` などの秘匿情報は要件/設計/ログに記載しない（マスキングを徹底する）
+- 「最新安定版」は 2026-03-07 時点の公式情報に基づき Active LTS と解釈すること
+- 再現性を優先し、可変エイリアスではなく major 固定のセットアップスクリプトを使うこと
 
 ## 前提（Assumptions） (必須)
-- 端末エミュレータ（Ghostty 等）は 256 色以上の表示能力を持つ
-- コンテナの作り直し・再ビルドを許容する（Dockerfile/イメージ更新が可能）
-- `xterm-256color` の terminfo を利用できる（不足する場合はコンテナ側で追加インストールしてよい）
+- 利用中の Ubuntu 24.04 ベースイメージで NodeSource の 24 系セットアップが利用できる
+- 既存 CLI 群は Node.js 24 系でも動作する
+- `engines.node >=20.0.0` は 24 系利用を許容する
 
 ## 判断材料/トレードオフ（Decision / Trade-offs） (任意)
-- 論点: `TERM/COLORTERM` を「入口で注入」するか「コンテナ側で恒久化」するか
-  - 選択肢A: 入口（`docker compose exec -e ...` 等）で毎回注入
-    - Pros: 対話セッションに限定でき、副作用を局所化できる
-    - Cons: 入口が増えると漏れやすい（`docker exec` 直叩き等）
-  - 選択肢B: コンテナ側（Dockerfile/起動時設定）で恒久化
-    - Pros: どの入口でも安定しやすく、運用上の付け忘れがない
-    - Cons: 非対話コマンドでも env が立つ（副作用の可能性）
-  - 決定: 選択肢B（コンテナ側で恒久化）を採用する
-  - 理由: 本タスクは「色数が少ない問題の解消」をまず達成することが目的で、運用上の漏れを避けることを優先するため
+- 論点: 「最新安定版」を `Current` と `Active LTS` のどちらで解釈するか
+  - 選択肢A: `Active LTS`（24.x）
+    - Pros: Node.js 公式の production 向け推奨に沿う、互換性変化が比較的穏やか
+    - Cons: 常に絶対最新 major にはならない
+  - 選択肢B: `Current`（25.x）
+    - Pros: 最も新しい major を使える
+    - Cons: 本番安定性より先行追従を優先することになり、変化が大きい
+  - 決定: 選択肢A（`Active LTS`）
+  - 理由: ユーザーの「最新安定版」という表現と Node.js 公式の production 推奨が一致するため
+- 論点: NodeSource の可変エイリアスを使うか、major 固定にするか
+  - 選択肢A: `setup_lts.x`
+  - 選択肢B: `setup_24.x`
+  - 決定: 選択肢B（major 固定）
+  - 理由: 将来の LTS 切替タイミングで予期せぬ変化を避け、再現性を優先するため
 
 ## リスク/懸念（Risks） (任意)
-- R-001: `COLORTERM=truecolor` を恒久化すると、非対話ログでも色有効と誤認するツールが出る可能性（影響: 低〜中 / 対応: 設計で「`COLORTERM` は必要なら対話時のみ」などのガードを検討する）
-- R-002: `TERM=xterm-256color` により一部ツールのキー入力/描画が変わる可能性（影響: 低 / 対応: `tput colors` と基本操作の確認、必要なら `TERM` の適用条件を調整）
+- R-001: Node.js 24 系で一部 CLI の互換問題が出る可能性（影響: 中 / 対応: 今回は導入系列更新のみを対象とし、必要なら別タスクで `npm run verify` を実施する）
+- R-002: NodeSource 配布内容の変化でビルドが失敗する可能性（影響: 低〜中 / 対応: `setup_24.x` 固定とビルド検証）
 
 ## 受け入れ条件（観測可能な振る舞い） (必須)
 - AC-001:
   - Actor/Role: 開発者
-  - Given: このリポジトリの Docker イメージを最新化してコンテナを起動できる
-  - When: コンテナ内で `TERM/COLORTERM` と色数を確認する
-  - Then: `docker compose exec` で `TERM=xterm-256color` / `COLORTERM=truecolor` となり、`tput colors` が `256` を返す
-  - 観測点（UI/HTTP/DB/Log など）: `docker compose exec ... /bin/zsh -lc 'echo $TERM; echo $COLORTERM; tput colors'` の出力
+  - Given: リポジトリの Dockerfile を参照できる
+  - When: Node.js のインストール設定を確認する
+  - Then: `setup_20.x` は存在せず、`setup_24.x` を使っている
+  - 観測点（UI/HTTP/DB/Log など）: `Dockerfile` の該当行
 - AC-002:
   - Actor/Role: 開発者
-  - Given: このリポジトリの Docker イメージを最新化してコンテナを起動できる
-  - When: `docker exec -it` でコンテナに入り `TERM/COLORTERM` と色数を確認する
-  - Then: `TERM=xterm-256color` / `COLORTERM=truecolor` となり、`tput colors` が `256` を返す
-  - 観測点（UI/HTTP/DB/Log など）: `docker exec -it ... /bin/zsh -lc 'echo $TERM; echo $COLORTERM; tput colors'` の出力
+  - Given: 更新後のイメージをビルドしてコンテナを起動できる
+  - When: コンテナ内で `node --version` を実行する
+  - Then: 出力が `v24.` で始まる
+  - 観測点（UI/HTTP/DB/Log など）: `node --version` の出力
 - AC-003:
-  - Actor/Role: 開発者
-  - Given: `./host/sandbox shell` または `./host/sandbox codex` を利用できる
-  - When: その経路でコンテナ内に入り、Codex CLI を起動する
-  - Then: 低色数フォールバック由来の表示崩れが解消し、視認性が改善している
-  - 観測点（UI/HTTP/DB/Log など）: 目視（TUI の配色が極端に変化しない）、および `tput colors` の値
-- AC-004:
   - Actor/Role: 開発者/CI
-  - Given: テストを実行できる
-  - When: `bash tests/sandbox_cli.test.sh`（必要なら追加のテスト）を実行する
-  - Then: 成功する（退行がない）
+  - Given: Bash テストを実行できる
+  - When: Node.js 系列の静的検査テストと既存 CLI テストを実行する
+  - Then: 成功する
   - 観測点（UI/HTTP/DB/Log など）: テスト結果（exit code / ログ）
 
 ### 入力→出力例 (任意)
 - EX-001:
-  - Input: `docker compose exec ... tput colors`
-  - Output: `256`
+  - Input: `grep -F "setup_24.x" Dockerfile`
+  - Output: 一致あり
 - EX-002:
-  - Input: `docker compose exec ... echo $TERM`
-  - Output: `xterm-256color`
+  - Input: `node --version`
+  - Output: `v24.x.y`
 
 ## 例外・エッジケース（仕様として固定） (必須)
 - EC-001:
-  - 条件: `xterm-256color` の terminfo がコンテナに存在しない
-  - 期待: `tput colors` が失敗せず `256` を返せるように、必要なパッケージをインストールして解消する
-  - 観測点（UI/HTTP/DB/Log など）: `infocmp xterm-256color` の成功、`tput colors=256`
+  - 条件: NodeSource の可変エイリアス (`setup_lts.x`) が将来別 major を指す
+  - 期待: 今回はそれを採用せず `setup_24.x` に固定する
+  - 観測点（UI/HTTP/DB/Log など）: `Dockerfile` の URL
 - EC-002:
-  - 条件: 利用者が意図的に `TERM` を別値で上書きしている（または tmux 等で `TERM=screen*`）
-  - 期待: “少なくとも色数問題を起こさない”ことを優先し、必要なら適用条件/案内を `design.md` に明記する
-  - 観測点: `tput colors` / 目視
+  - 条件: `package.json` は `>=20` のままである
+  - 期待: 24 系利用でも矛盾せず、`engines` 自体は変更しない
+  - 観測点: `package.json` とテスト結果
 
 ## 用語（ドメイン語彙） (必須)
-- TERM-001: `TERM` = 端末種別を示す環境変数（terminfo のエントリ選択に使われ、色数等の能力検出に影響する）
-- TERM-002: `COLORTERM` = TrueColor 等の追加能力を示す慣習的な環境変数（TUI/CLI が参照することがある）
-- TERM-003: terminfo = 端末能力データベース（`tput`/`infocmp`/`tic` が利用）
-- TERM-004: 256 色 = `tput colors` が `256` を返す状態（8色/16色フォールバックより高精細）
+- TERM-001: Active LTS = Node.js 公式が production 向けに自然な選択として扱う安定系列
+- TERM-002: Current = 最新 major だが LTS ではない先行系列
+- TERM-003: NodeSource setup script = Debian/Ubuntu へ Node.js apt リポジトリを設定するスクリプト
 
 ## 未確定事項（TBD / 要確認） (必須)
-- Q-001（解消済み / 2026-02-26 ユーザー回答: 1 常時設定）:
-  - 質問: `COLORTERM=truecolor` を “常時” 設定するか、“対話セッションのみ” に限定するか？
-  - 決定: A（常時設定）
-  - 影響範囲: AC-001/002, R-001, 設計・テスト方針
-- Q-002（解消済み / 2026-02-26 ユーザー回答: 2 含める）:
-  - 質問: “保証対象の入口”はどこまで含めるか？（`docker exec -it` 直叩きも含むか）
-  - 決定: B（`docker exec -it` も含める）
-  - 影響範囲: AC-002, 設計・検証コマンド
+- Q-001（解消済み / 2026-03-07 ユーザー合意）:
+  - 質問: 「最新安定版」はどの追従方針で固定するか
+  - 決定: `Active LTS`
+  - 影響範囲: AC-001, AC-002, 設計, テスト方針
 
 ## 完了条件（Definition of Done） (必須)
-- すべてのAC/ECが満たされる
-- 未確定事項が解消される（残す場合は「残す理由」と「合意」を明記）
-- MUST NOT / OUT OF SCOPE を破っていない（追加機能を入れていない）
+- すべての AC/EC が満たされる
+- Docker イメージの Node.js 導入系列が 24 系固定へ更新される
+- 既存フローと既存テストを壊していない
 
 ## 省略/例外メモ (必須)
 - 該当なし

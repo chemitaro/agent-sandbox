@@ -6,8 +6,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/_helpers.sh"
 
 path_without_docker() {
-    # Minimal PATH without docker on this environment (Darwin).
-    echo "/usr/bin:/bin"
+    # Ensure docker resolves to a deterministic failure while keeping other commands available.
+    local shim_dir
+    shim_dir="$(mktemp -d)"
+
+    cat > "$shim_dir/docker" <<'STUB'
+#!/bin/bash
+exit 127
+STUB
+
+    chmod +x "$shim_dir/docker"
+
+    echo "$shim_dir:$PATH"
 }
 
 setup_compose_stubs() {
@@ -519,7 +529,7 @@ tz_injection_rules() {
     local root_b="$tmp_dir_b/project"
     setup_env_for_up "$tmp_dir_b" "$root_b" "$root_b"
     echo "TZ=America/New_York" > "$tmp_dir_b/.env"
-    run_cmd "$tmp_dir_b/host/sandbox" up --mount-root "$root_b" --workdir "$root_b"
+    run_cmd env -u TZ "$tmp_dir_b/host/sandbox" up --mount-root "$root_b" --workdir "$root_b"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_not_contains "$log_file_b" "TZ="
 
@@ -533,7 +543,7 @@ tz_injection_rules() {
     local root_c="$tmp_dir_c/project"
     setup_env_for_up "$tmp_dir_c" "$root_c" "$root_c"
     echo "TZ=" > "$tmp_dir_c/.env"
-    run_cmd "$tmp_dir_c/host/sandbox" up --mount-root "$root_c" --workdir "$root_c"
+    run_cmd env -u TZ "$tmp_dir_c/host/sandbox" up --mount-root "$root_c" --workdir "$root_c"
     assert_exit_code 0 "$RUN_CODE"
     local tz_line
     tz_line="$(grep -F "TZ=" "$log_file_c" | tail -n1)"
@@ -1366,10 +1376,13 @@ codex_errors_when_tmux_missing() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
     local no_tmux_path
-    no_tmux_path="$(path_without_docker)"
+    no_tmux_path="$(mktemp -d)"
+    ln -sf "$(command -v dirname)" "$no_tmux_path/dirname"
+    ln -sf "$(command -v basename)" "$no_tmux_path/basename"
+    ln -sf "$(command -v realpath)" "$no_tmux_path/realpath"
+    ln -sf "$(command -v readlink)" "$no_tmux_path/readlink"
 
-    PATH="$no_tmux_path" hash -r
-    PATH="$no_tmux_path" run_cmd "$tmp_dir/host/sandbox" codex
+    run_cmd env -i HOME="$tmp_dir" PATH="$no_tmux_path" /bin/bash "$tmp_dir/host/sandbox" codex
     if [[ "$RUN_CODE" -eq 0 ]]; then
         echo "Expected tmux error for codex" >&2
         return 1

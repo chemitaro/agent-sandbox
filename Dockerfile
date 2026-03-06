@@ -8,9 +8,9 @@ ARG PRODUCT_NAME
 ENV PRODUCT_NAME="$PRODUCT_NAME"
 ENV PRODUCT_WORK_DIR="/srv/$PRODUCT_NAME"
 
-# Install Node.js 20
+# Install Node.js 24
 RUN apt update && apt install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt install -y nodejs
 
 # Create node user explicitly (Ubuntu 24.04 doesn't create node user automatically)
