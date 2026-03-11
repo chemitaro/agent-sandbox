@@ -29,5 +29,13 @@ dockerfile_has_ncurses_term_package() {
     assert_file_contains "$DOCKERFILE" "ncurses-term"
 }
 
+dockerfile_does_not_enable_fzf_plugin() {
+    if grep -Fq -- "-p fzf" "$DOCKERFILE"; then
+        echo "Did not expect $DOCKERFILE to enable the oh-my-zsh fzf plugin" >&2
+        return 1
+    fi
+}
+
 run_test "dockerfile_sets_term_defaults" dockerfile_sets_term_defaults
 run_test "dockerfile_has_ncurses_term_package" dockerfile_has_ncurses_term_package
+run_test "dockerfile_does_not_enable_fzf_plugin" dockerfile_does_not_enable_fzf_plugin

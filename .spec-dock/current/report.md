@@ -1,71 +1,56 @@
 ---
 種別: 実装報告書
-機能ID: "<FEATURE_ID>"
-機能名: "<FEATURE_NAME>"
-関連Issue: ["<ISSUE_NUMBER_OR_URL>"]
-状態: "draft | approved"
-作成者: "<YOUR_NAME>"
-最終更新: "YYYY-MM-DD"
+機能ID: "fix-fzf-plugin-startup"
+機能名: "zsh startup から fzf plugin を外して shell 初期化エラーを防ぐ"
+関連Issue: ["user-request-2026-03-11-fzf-plugin"]
+状態: "draft"
+作成者: "Codex"
+最終更新: "2026-03-11"
 依存: ["requirement.md", "design.md", "plan.md"]
 ---
 
-# <FEATURE_ID> <FEATURE_NAME> — 実装報告（LOG）
-
-## 実装サマリー (任意)
-- [実装した内容の概要を2-3文で記載]
+# fix-fzf-plugin-startup — 実装報告（LOG）
 
 ## 実装記録（セッションログ） (必須)
 
-### YYYY-MM-DD HH:MM - HH:MM
+### 2026-03-11
 
 #### 対象
-- Step: S01, S02, ...
-- AC/EC: AC-___, EC-___
+- Step: S01, S02, S03
+- AC/EC: AC-001, AC-002, EC-001
 
 #### 実施内容
-- ...
+- `Dockerfile` の `zsh-in-docker` plugin 指定から `-p fzf` を除去した。
+- `tests/sandbox_term_env.test.sh` に `-p fzf` 不在を確認する静的テストを追加した。
+- `fzf` apt package はそのまま残し、plugin 依存だけを外した。
 
 #### 実行コマンド / 結果
 ```bash
-<command>
+bash tests/sandbox_term_env.test.sh
 
-<result>
+==> dockerfile_sets_term_defaults
+==> dockerfile_has_ncurses_term_package
+==> dockerfile_does_not_enable_fzf_plugin
+
+rg -n --fixed-strings -- '-p fzf' Dockerfile || true
+
+# no output
+
+rg -n '^[[:space:]]*fzf \\\\' Dockerfile
+
+45:  fzf \
 ```
 
 #### 変更したファイル
-- `path/to/file1` - ...
-- `path/to/file2` - ...
+- `Dockerfile` - `zsh-in-docker` の `fzf` plugin を無効化
+- `tests/sandbox_term_env.test.sh` - `-p fzf` 不在の静的テストを追加
 
 #### コミット
-- <hash> <message>
+- なし
 
 #### メモ
-- ...
-
----
-
-### YYYY-MM-DD HH:MM - HH:MM
-
-#### 対象
-- Step: ...
-- AC/EC: ...
-
-#### 実施内容
-- ...
-
----
-
-## 遭遇した問題と解決 (任意)
-- 問題: ...
-  - 解決: ...
-
-## 学んだこと (任意)
-- ...
-- ...
-
-## 今後の推奨事項 (任意)
-- ...
-- ...
+- 議論シート: `.spec-dock/current/discussions/fzf-zsh-root-cause-and-mitigation.md`
+- sub-agent セッションは `bwrap` 制約で失敗したため、最小差分のみ main セッションで反映した
 
 ## 省略/例外メモ (必須)
 - 該当なし

@@ -124,7 +124,6 @@ ENV COLORTERM=truecolor
 # Default powerline10k theme
 RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v1.2.0/zsh-in-docker.sh)" -- \
   -p git \
-  -p fzf \
   -a "export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhistory/.bash_history" \
   -a "alias vim='nvim'" \
   -a "alias vi='nvim'" \
