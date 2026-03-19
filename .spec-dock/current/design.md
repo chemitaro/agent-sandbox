@@ -22,6 +22,7 @@
   - `sandbox copilot [options] -- [copilot args...]` の契約を明示し、`--` より後ろは `copilot` へ pass-through する
   - Copilot CLI の非対話・programmatic 利用では tmux を自動バイパスし、標準入出力を親プロセスへ返す
   - `sandbox copilot` は Copilot CLI の終了コードを失わずに呼び出し元へ返す
+  - Copilot CLI の非対話経路では `docker compose exec -T` を使い、Compose 既定の TTY 割り当てを無効化する
 - MUST NOT:
   - `COPILOT_HOME` による別ディレクトリ設計を持ち込まない
   - `~/.copilot` 以外の追加 XDG/config/cache mount を推測で足さない
@@ -75,12 +76,12 @@
   3. `docker-compose.yml` で `.agent-home/.copilot:/home/node/.copilot` を mount する
 - Flow for AC-003:
   1. `sandbox copilot` 実行時、外側では tmux セッションの存在を確認する
-  2. 標準入出力が TTY であり、かつ programmatic mode を要求する引数が無い場合のみ tmux セッションを生成または再利用する
-  3. 標準入出力が非 TTY、または Copilot の programmatic mode を要求する場合は tmux をバイパスして直接コンテナ実行へ進む
+  2. `stdin` と `stdout` の両方が TTY であり、かつ programmatic mode を要求する引数が無い場合のみ tmux セッションを生成または再利用する
+  3. `stdin` または `stdout` のどちらかが非 TTY、または Copilot の programmatic mode を要求する場合は tmux をバイパスして直接コンテナ実行へ進む
   4. 内側フローでは `determine_paths`、Docker/Compose 準備、`run_compose_up`
   5. sandbox オプションは `--` の手前までで解釈し、`--` より後ろは `copilot` 引数として保持する
   6. 対話実行では `copilot` 成功時のみ zsh に戻し、失敗時は Copilot の終了コードで終了する
-  7. 非対話実行では `copilot` だけを実行し、終了コードと標準入出力をそのまま返す
+  7. 非対話実行では `docker compose exec -T` で `copilot` だけを実行し、終了コードと標準入出力をそのまま返す
 - Flow for AC-004:
   1. help 表示時は `copilot` サブコマンドを認識する
   2. ただちに help テキストだけを返し、副作用を起こさない
@@ -100,7 +101,7 @@
   - Errors/Exceptions: 作成不能時は `mkdir -p` 失敗で終了
 - IF-002: `host/sandbox::run_compose_exec_copilot(container_workdir, container_name, compose_project_name, abs_mount_root, [copilot_args...])`
   - Input: container workdir と compose 実行文脈、任意の Copilot 引数
-  - Output: コンテナ内で `copilot` を実行し、対話実行では成功時のみ zsh に戻る
+  - Output: コンテナ内で `copilot` を実行し、対話実行では成功時のみ zsh に戻る。非対話実行では `-T` 付き exec で標準入出力を親へ返す
   - Errors/Exceptions: Copilot または compose exec の終了コードをそのまま返す
 - IF-005: `host/sandbox::split_copilot_args()`
   - Input: `sandbox copilot` に渡された全引数
@@ -132,7 +133,8 @@
   - `docker-compose.yml`: `.agent-home/.copilot:/home/node/.copilot` mount を追加し、Copilot 用の追加 XDG/config/cache mount は設けない
   - `host/sandbox`: `.agent-home` 初期化、help、subcommand 判定、引数分離、tmux/compose ベースの `sandbox copilot [options] -- [copilot args...]` 実装を追加する
   - `host/sandbox`: Copilot の非対話時 tmux バイパスと、Copilot 終了コードを保持する実行ラッパーに修正する
-  - `tests/sandbox_cli.test.sh`: help、`.agent-home`、`sandbox copilot`、tmux なしエラー等のテストに加えて、非対話バイパスと終了コード保持のテストを追加・更新する
+  - `host/sandbox`: Copilot の非対話時は `docker compose exec -T` を使うよう修正し、stdout リダイレクト時も tmux をバイパスする
+  - `tests/sandbox_cli.test.sh`: help、`.agent-home`、`sandbox copilot`、tmux なしエラー等のテストに加えて、非対話バイパス、`-T` 利用、stdout リダイレクト時バイパス、終了コード保持のテストを追加・更新する
 - 削除（Delete）:
   - 該当なし
 - 移動/リネーム（Move/Rename）:
@@ -163,6 +165,8 @@
     - `sandbox copilot` の tmux 外側起動と内側 compose exec 起動
     - `sandbox copilot -- --help` が `copilot --help` として pass-through されること
     - `echo ... | sandbox copilot ...` のような非対話実行で tmux を使わないこと
+    - stdout リダイレクトやコマンド置換でも tmux を使わないこと
+    - 非対話実行では `docker compose exec -T` が使われること
     - 非対話実行時に Copilot の失敗終了コードが保持されること
     - tmux 未導入時にエラー終了すること
   - Frontend: なし
@@ -173,6 +177,7 @@
   - AC-002 → `tests/sandbox_cli.test.sh` の `.agent-home` 作成確認更新
   - AC-003 → 新規 `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_is_passed_to_copilot`
   - AC-003 → 新規 `copilot_noninteractive_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+  - AC-003 → 新規 `copilot_redirected_stdout_bypasses_tmux`
   - AC-004 → 新規 `help_copilot_mentions_tmux`
   - EC-001 → 新規 `copilot_errors_when_tmux_missing`
   - EC-002 → `help` 系テスト

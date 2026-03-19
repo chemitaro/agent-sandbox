@@ -1539,7 +1539,7 @@ copilot_noninteractive_bypasses_tmux() {
         cat "$tmux_log" >&2
         return 1
     fi
-    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project"
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
     assert_log_contains "$log_file" "copilot"
     assert_log_contains "$log_file" "-p"
     assert_log_contains "$log_file" "Say\\ hello"
@@ -1577,6 +1577,33 @@ copilot_noninteractive_preserves_exit_status() {
         cat "$tmux_log" >&2
         return 1
     fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_redirected_stdout_bypasses_tmux() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local out_file="$tmp_dir/copilot.out"
+    "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" >"$out_file"
+
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used when stdout is redirected" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
     assert_log_contains "$log_file" "copilot"
     assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
 }
@@ -1634,4 +1661,5 @@ run_test "copilot_inner_runs_copilot_and_returns_to_zsh" copilot_inner_runs_copi
 run_test "copilot_help_flag_after_double_dash_is_passed_to_copilot" copilot_help_flag_after_double_dash_is_passed_to_copilot
 run_test "copilot_errors_when_tmux_missing" copilot_errors_when_tmux_missing
 run_test "copilot_noninteractive_bypasses_tmux" copilot_noninteractive_bypasses_tmux
+run_test "copilot_redirected_stdout_bypasses_tmux" copilot_redirected_stdout_bypasses_tmux
 run_test "copilot_noninteractive_preserves_exit_status" copilot_noninteractive_preserves_exit_status

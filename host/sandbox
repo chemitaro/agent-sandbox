@@ -288,9 +288,9 @@ run_compose_exec_copilot() {
         fi
     else
         if [[ $# -gt 0 ]]; then
-            run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot "$@"' -- "$@"
+            run_compose exec -T -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot "$@"' -- "$@"
         else
-            run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot'
+            run_compose exec -T -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot'
         fi
     fi
 }
@@ -459,7 +459,7 @@ copilot_should_use_tmux() {
     if [[ -n "${SANDBOX_COPILOT_FORCE_TMUX:-}" ]]; then
         return 0
     fi
-    if [[ ! -t 0 ]]; then
+    if [[ ! -t 0 || ! -t 1 ]]; then
         return 1
     fi
     if copilot_requests_programmatic_mode "$@"; then

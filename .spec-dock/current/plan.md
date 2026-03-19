@@ -25,6 +25,7 @@
 - [ ] S03: `sandbox copilot` が tmux 経由でコンテナ内 `copilot` を起動できる
 - [ ] S04: help とテストが Copilot 統合後の仕様を保証する
 - [ ] S05: Copilot の非対話利用では tmux をバイパスし、終了コードを保持する
+- [ ] S06: Copilot の非対話利用では `docker compose exec -T` を使い、stdout リダイレクト時も tmux を使わない
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S01
@@ -38,9 +39,11 @@
 - EC-005 → S03
 - EC-001 → S05
 - EC-005 → S05
+- EC-005 → S06
 - 非交渉制約（標準ディレクトリ運用） → S02
 - 非交渉制約（tmux ラッパー） → S03
 - 非交渉制約（非対話時は標準入出力と終了コードを保持） → S05
+- 非交渉制約（非対話時は TTY を割り当てず、stdout 消費側へ出力を返す） → S06
 
 ---
 
@@ -303,6 +306,61 @@
 #### Refactor（振る舞い不変で整理） (任意)
 - 目的:
   - Copilot の対話/非対話フローを読みやすく分離する
+- 変更対象:
+  - `host/sandbox`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
+- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
+- [ ] コミットした（エージェント）
+
+### S06 — Copilot の非対話利用では `docker compose exec -T` を使い、stdout リダイレクト時も tmux を使わない (必須)
+- 対象: AC-003 / EC-005
+- 設計参照:
+  - 対象IF/API: IF-002, IF-007
+  - 対象テスト: `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+- このステップで「追加しないこと（スコープ固定）」:
+  - Copilot の引数体系や programmatic mode 判定条件自体は広げない
+  - Codex サブコマンドの exec/TTY 仕様は変更しない
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
+- 登録例:
+  - （調査）PR レビュー指摘と現在の S05 実装との差分確認
+  - （Red）`-T` 未付与と stdout リダイレクト時 tmux 使用の失敗テスト追加
+  - （Green）`host/sandbox` の Copilot 非対話 exec と tmux 判定を修正
+  - （Refactor）対話/非対話経路の条件整理
+  - （品質ゲート）`bash tests/sandbox_cli.test.sh`
+  - （報告）`.spec-dock/current/report.md` 更新
+  - （コミット）このステップの区切りでコミット
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `sandbox copilot [options] -- [copilot args...]` を対話シェルやスクリプトから呼び出す
+- When: `printf ... | sandbox copilot ...` または `sandbox copilot ... > out.txt` のような非対話利用を行う
+- Then: tmux を使わず、`docker compose exec -T` で Copilot を実行し、呼び出し元の stdout/stderr/exit code を保持する
+- 観測点（UI/HTTP/DB/Log など）: tmux stub ログ、compose exec ログの `-T`、出力先、終了コード
+- 追加/更新するテスト: `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+
+#### Red（失敗するテストを先に書く） (任意)
+- 期待する失敗:
+  - 非対話経路でも `docker compose exec` に `-T` が付かない
+  - stdout リダイレクト時に tmux セッションへ入ってしまう
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 追加する概念（このステップで導入する最小単位）:
+  - `stdout` 非 TTY を含む tmux 判定
+  - Copilot 非対話 exec の `-T`
+- 実装方針（最小で。余計な最適化は禁止）:
+  - `copilot_should_use_tmux` は stdin と stdout の両方が TTY のときだけ true にする
+  - 非対話経路では常に `docker compose exec -T` を使う
+
+#### Refactor（振る舞い不変で整理） (任意)
+- 目的:
+  - 非対話経路の契約を条件レベルではっきりさせる
 - 変更対象:
   - `host/sandbox`
 
