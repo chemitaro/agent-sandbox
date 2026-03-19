@@ -27,6 +27,7 @@
 - [ ] S05: Copilot の非対話利用では tmux をバイパスし、終了コードを保持する
 - [ ] S06: Copilot の非対話利用では `docker compose exec -T` を使い、stdout リダイレクト時も tmux を使わない
 - [ ] S07: Copilot の対話/非対話モード境界を明示し、対話モードの TTY 不足は明示エラー、`-p` / `--prompt` には承認オーバーライドを必須化する
+- [ ] S08: Copilot の headless invocation を公式仕様に合わせ、`--allow-all` / `--yolo` と `help` / `version` / stdin オプション入力を direct exec で扱えるようにする
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S01
@@ -42,11 +43,13 @@
 - EC-005 → S05
 - EC-005 → S06
 - EC-005 → S07
+- EC-005 → S08
 - 非交渉制約（標準ディレクトリ運用） → S02
 - 非交渉制約（tmux ラッパー） → S03
 - 非交渉制約（非対話時は標準入出力と終了コードを保持） → S05
 - 非交渉制約（非対話時は TTY を割り当てず、stdout 消費側へ出力を返す） → S06
 - 非交渉制約（曖昧なモード切替をせず、前提不足は明示エラーにする） → S07
+- 非交渉制約（公式の headless entry point を wrapper が阻害しない） → S08
 
 ---
 
@@ -158,7 +161,7 @@
 - 対象: AC-003 / EC-001
 - 設計参照:
   - 対象IF/API: IF-002, IF-003, IF-005
-  - 対象テスト: `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_is_passed_to_copilot`, `copilot_errors_when_tmux_missing`
+  - 対象テスト: `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_errors_when_tmux_missing`
 - このステップで「追加しないこと（スコープ固定）」:
   - Copilot 独自の権限モード切替や Trust 制御は追加しない
 
@@ -178,7 +181,7 @@
 - When: `sandbox copilot --mount-root <root> --workdir <subdir> -- --help` を実行する
 - Then: 外側は tmux セッションを張り、内側は compose up 後に `copilot --help` を `container_workdir` で実行する
 - 観測点（UI/HTTP/DB/Log など）: tmux stub ログ、compose stub ログ
-- 追加/更新するテスト: `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_is_passed_to_copilot`, `copilot_errors_when_tmux_missing`
+- 追加/更新するテスト: `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_errors_when_tmux_missing`
 
 #### Red（失敗するテストを先に書く） (任意)
 - 期待する失敗:
@@ -322,7 +325,7 @@
 - 対象: AC-003 / EC-005
 - 設計参照:
   - 対象IF/API: IF-002, IF-007
-  - 対象テスト: `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+  - 対象テスト: `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_errors_for_interactive_mode`, `copilot_noninteractive_preserves_exit_status`
 - このステップで「追加しないこと（スコープ固定）」:
   - Copilot の引数体系や programmatic mode 判定条件自体は広げない
   - Codex サブコマンドの exec/TTY 仕様は変更しない
@@ -343,7 +346,7 @@
 - When: `printf ... | sandbox copilot ...` または `sandbox copilot ... > out.txt` のような非対話利用を行う
 - Then: tmux を使わず、`docker compose exec -T` で Copilot を実行し、呼び出し元の stdout/stderr/exit code を保持する
 - 観測点（UI/HTTP/DB/Log など）: tmux stub ログ、compose exec ログの `-T`、出力先、終了コード
-- 追加/更新するテスト: `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+- 追加/更新するテスト: `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_errors_for_interactive_mode`, `copilot_noninteractive_preserves_exit_status`
 
 #### Red（失敗するテストを先に書く） (任意)
 - 期待する失敗:
@@ -419,6 +422,62 @@
 #### Refactor（振る舞い不変で整理） (任意)
 - 目的:
   - Copilot 呼び出し前検証と tmux 判定の責務を分けて読みやすくする
+- 変更対象:
+  - `host/sandbox`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
+- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
+- [ ] コミットした（エージェント）
+
+### S08 — Copilot の headless invocation を公式仕様に合わせ、`--allow-all` / `--yolo` と `help` / `version` / stdin オプション入力を direct exec で扱えるようにする (必須)
+- 対象: AC-003 / EC-005
+- 設計参照:
+  - 対象IF/API: IF-006, IF-007, IF-008, IF-009, IF-010
+  - 対象テスト: `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_version_flag_uses_direct_exec`, `copilot_programmatic_accepts_allow_all_aliases`, `copilot_stdin_option_stream_uses_direct_exec`
+- このステップで「追加しないこと（スコープ固定）」:
+  - wrapper 側で stdin の中身を完全解釈する独自 parser は実装しない
+  - Copilot 本体の approval semantics を置き換えない
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
+- 登録例:
+  - （調査）最新レビューと現行 headless 判定の差分確認
+  - （Red）`--allow-all` / `--yolo`、help/version、stdin オプション入力の失敗テスト追加
+  - （Green）`host/sandbox` に headless invocation 判定を追加
+  - （Refactor）programmatic 判定と headless 判定の責務分離
+  - （品質ゲート）`bash tests/sandbox_cli.test.sh`
+  - （報告）`.spec-dock/current/report.md` 更新
+  - （コミット）このステップの区切りでコミット
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `sandbox copilot [options] -- [copilot args...]` をスクリプトや CI から呼び出す
+- When: `sandbox copilot -- --help` / `sandbox copilot -- --version` / `sandbox copilot -- -p "fix" --allow-all` / `printf '%s\n' --version | sandbox copilot` のような headless invocation を行う
+- Then: これらは tmux を使わず `docker compose exec -T` の直接実行へ進み、`--allow-all` と `--yolo` は承認オーバーライドとして受理される
+- 観測点（UI/HTTP/DB/Log など）: tmux stub ログ、compose exec ログ、終了コード
+- 追加/更新するテスト: `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_version_flag_uses_direct_exec`, `copilot_programmatic_accepts_allow_all_aliases`, `copilot_stdin_option_stream_uses_direct_exec`
+
+#### Red（失敗するテストを先に書く） (任意)
+- 期待する失敗:
+  - `--allow-all` / `--yolo` が approval override として認識されない
+  - `--help` / `--version` が tmux 対話経路へ入る
+  - stdin からのオプション入力が TTY エラーで止まる
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 追加する概念（このステップで導入する最小単位）:
+  - `copilot_requests_headless_mode`
+  - `--allow-all` / `--yolo` の approval alias
+- 実装方針（最小で。余計な最適化は禁止）:
+  - `-p` / `--prompt` は programmatic 判定のまま維持しつつ、tmux 回避条件は `help` / `version` / stdin オプション入力を含む headless invocation に広げる
+  - stdin 非 TTYかつ引数空のケースは wrapper が中身を解釈せず、本体に直接渡す
+
+#### Refactor（振る舞い不変で整理） (任意)
+- 目的:
+  - headless invocation 判定を対話判定から切り離して読みやすくする
 - 変更対象:
   - `host/sandbox`
 

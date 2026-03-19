@@ -455,6 +455,27 @@ copilot_requests_programmatic_mode() {
     return 1
 }
 
+copilot_requests_headless_mode() {
+    if copilot_requests_programmatic_mode "$@"; then
+        return 0
+    fi
+
+    if [[ $# -eq 0 && ! -t 0 ]]; then
+        return 0
+    fi
+
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            help|version|-v|--version|--help)
+                return 0
+                ;;
+        esac
+    done
+
+    return 1
+}
+
 copilot_has_approval_override() {
     local allow_all="${COPILOT_ALLOW_ALL:-}"
     if [[ -n "$allow_all" ]]; then
@@ -477,6 +498,9 @@ copilot_has_approval_override() {
             --allow-all-tools|--allow-all-tools=*)
                 return 0
                 ;;
+            --allow-all|--allow-all=*|--yolo|--yolo=*)
+                return 0
+                ;;
             --allow-tool)
                 expect_allow_tool_value=true
                 ;;
@@ -495,9 +519,13 @@ validate_copilot_invocation() {
 
     if copilot_requests_programmatic_mode "$@"; then
         if ! copilot_has_approval_override "$@"; then
-            echo "Programmatic copilot usage with -p/--prompt requires --allow-all-tools, --allow-tool <tool>, or COPILOT_ALLOW_ALL." >&2
+            echo "Programmatic copilot usage with -p/--prompt requires --allow-all-tools, --allow-tool <tool>, --allow-all, --yolo, or COPILOT_ALLOW_ALL." >&2
             return 1
         fi
+        return 0
+    fi
+
+    if copilot_requests_headless_mode "$@"; then
         return 0
     fi
 
@@ -513,7 +541,7 @@ copilot_should_use_tmux() {
     if [[ -n "${SANDBOX_COPILOT_FORCE_TMUX:-}" ]]; then
         return 0
     fi
-    if copilot_requests_programmatic_mode "$@"; then
+    if copilot_requests_headless_mode "$@"; then
         return 1
     fi
     if [[ ! -t 0 || ! -t 1 ]]; then
@@ -1300,7 +1328,8 @@ Options:
   -h, --help
 Notes:
   Arguments after "--" are passed to copilot (e.g., sandbox copilot -- --help).
-  Noninteractive -p/--prompt usage requires --allow-all-tools, --allow-tool, or COPILOT_ALLOW_ALL.
+  Headless help/version invocations run without tmux.
+  Noninteractive -p/--prompt usage requires --allow-all-tools, --allow-tool, --allow-all, --yolo, or COPILOT_ALLOW_ALL.
   必要な場合は sandbox shell で copilot を直接実行してください。
 USAGE
 }

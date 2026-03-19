@@ -23,8 +23,9 @@
   - Copilot CLI の非対話・programmatic 利用では tmux を自動バイパスし、標準入出力を親プロセスへ返す
   - `sandbox copilot` は Copilot CLI の終了コードを失わずに呼び出し元へ返す
   - Copilot CLI の非対話経路では `docker compose exec -T` を使い、Compose 既定の TTY 割り当てを無効化する
-  - `-p` / `--prompt` を使う programmatic 実行は、`--allow-all-tools` / `--allow-tool ...` または `COPILOT_ALLOW_ALL` による承認オーバーライドがある場合にのみ非対話経路へ流す
+  - `-p` / `--prompt` を使う programmatic 実行は、`--allow-all-tools` / `--allow-tool ...` / `--allow-all` / `--yolo` または `COPILOT_ALLOW_ALL` による承認オーバーライドがある場合にのみ非対話経路へ流す
   - 対話モードの `copilot` / `copilot --interactive` は TTY 前提のまま扱い、stdin または stdout が非 TTY の場合は非対話経路へ暗黙変換せず明示エラーにする
+  - `copilot help [topic]`、`version`、`-v/--version`、stdin からオプション列を受ける headless invocation は tmux を使わず直接実行できる
 - MUST NOT:
   - `COPILOT_HOME` による別ディレクトリ設計を持ち込まない
   - `~/.copilot` 以外の追加 XDG/config/cache mount を推測で足さない
@@ -80,15 +81,17 @@
   3. `docker-compose.yml` で `.agent-home/.copilot:/home/node/.copilot` を mount する
 - Flow for AC-003:
   1. `sandbox copilot` 実行時、外側では tmux セッションの存在を確認する
-  2. `-p` / `--prompt` が指定されている場合は programmatic mode とみなし、`--allow-all-tools` / `--allow-tool ...` / `COPILOT_ALLOW_ALL` を検査する
-  3. programmatic mode で承認オーバーライドが揃っている場合のみ tmux をバイパスして `docker compose exec -T` の直接実行へ進む
-  4. programmatic mode で承認オーバーライドが無い場合は、必要なフラグまたは環境変数を案内して明示エラーにする
-  5. programmatic mode でない場合は対話モードとして扱い、`stdin` と `stdout` の両方が TTY のときだけ tmux セッションを生成または再利用する
-  6. 対話モードで `stdin` または `stdout` のどちらかが非 TTY の場合は、非対話経路へ暗黙変換せず明示エラーにする
-  7. 内側フローでは `determine_paths`、Docker/Compose 準備、`run_compose_up`
-  8. sandbox オプションは `--` の手前までで解釈し、`--` より後ろは `copilot` 引数として保持する
-  9. 対話実行では `copilot` 成功時のみ zsh に戻し、失敗時は Copilot の終了コードで終了する
-  10. 非対話実行では `docker compose exec -T` で `copilot` だけを実行し、終了コードと標準入出力をそのまま返す
+  2. `-p` / `--prompt`、`help`、`version`、`-v/--version`、または stdin 非 TTYかつ引数空のケースを headless invocation とみなす
+  3. `-p` / `--prompt` を含む headless invocation では、`--allow-all-tools` / `--allow-tool ...` / `--allow-all` / `--yolo` / `COPILOT_ALLOW_ALL` を検査する
+  4. `-p` / `--prompt` で承認オーバーライドが揃っている場合のみ tmux をバイパスして `docker compose exec -T` の直接実行へ進む
+  5. `help` / `version` / stdin オプション入力の headless invocation は、承認オーバーライド不要で直接実行へ進む
+  6. `-p` / `--prompt` で承認オーバーライドが無い場合は、必要なフラグまたは環境変数を案内して明示エラーにする
+  7. headless invocation でない場合は対話モードとして扱い、`stdin` と `stdout` の両方が TTY のときだけ tmux セッションを生成または再利用する
+  8. 対話モードで `stdin` または `stdout` のどちらかが非 TTY の場合は、非対話経路へ暗黙変換せず明示エラーにする
+  9. 内側フローでは `determine_paths`、Docker/Compose 準備、`run_compose_up`
+  10. sandbox オプションは `--` の手前までで解釈し、`--` より後ろは `copilot` 引数として保持する
+  11. 対話実行では `copilot` 成功時のみ zsh に戻し、失敗時は Copilot の終了コードで終了する
+  12. 非対話実行では `docker compose exec -T` で `copilot` だけを実行し、終了コードと標準入出力をそのまま返す
 - Flow for AC-004:
   1. help 表示時は `copilot` サブコマンドを認識する
   2. ただちに help テキストだけを返し、副作用を起こさない
@@ -118,17 +121,21 @@
   - Input: `copilot` へ渡す引数配列
   - Output: `-p` / `--prompt` など、programmatic 利用を示すフラグの有無を判定する
   - Errors/Exceptions: なし
+- IF-010: `host/sandbox::copilot_requests_headless_mode([copilot_args...])`
+  - Input: `copilot` へ渡す引数配列と stdin の TTY 状態
+  - Output: `-p` / `--prompt`、`help`、`version`、`-v/--version`、stdin オプション入力など、tmux を使わず直接実行すべき headless invocation かを判定する
+  - Errors/Exceptions: なし
 - IF-008: `host/sandbox::copilot_has_approval_override([copilot_args...])`
   - Input: `copilot` へ渡す引数配列と `COPILOT_ALLOW_ALL`
-  - Output: `--allow-all-tools`、`--allow-tool ...`、`COPILOT_ALLOW_ALL` のいずれかで非対話実行に必要な承認オーバーライドが存在するかを判定する
+  - Output: `--allow-all-tools`、`--allow-tool ...`、`--allow-all`、`--yolo`、`COPILOT_ALLOW_ALL` のいずれかで非対話実行に必要な承認オーバーライドが存在するかを判定する
   - Errors/Exceptions: なし
 - IF-009: `host/sandbox::validate_copilot_invocation([copilot_args...])`
   - Input: 現在の stdin/stdout の TTY 状態、`copilot` 引数、`COPILOT_ALLOW_ALL`
-  - Output: 呼び出しが対話モードとして成立するか、または programmatic mode の前提を満たしているかを検証する
+  - Output: 呼び出しが対話モードとして成立するか、または headless invocation の前提を満たしているかを検証する
   - Errors/Exceptions: 前提不足時は stderr に補正方法を出して非 0 を返す
 - IF-007: `host/sandbox::copilot_should_use_tmux([copilot_args...])`
   - Input: 現在の stdin/stdout の TTY 状態と `copilot` 引数
-  - Output: 妥当な対話実行なら 0、programmatic 実行または tmux 不使用なら非 0
+  - Output: 妥当な対話実行なら 0、headless invocation または tmux 不使用なら非 0
   - Errors/Exceptions: なし
 - IF-003: `host/sandbox::compute_copilot_session_name()`
   - Input: `CALLER_PWD`
@@ -150,7 +157,8 @@
   - `host/sandbox`: Copilot の非対話時 tmux バイパスと、Copilot 終了コードを保持する実行ラッパーに修正する
   - `host/sandbox`: Copilot の非対話時は `docker compose exec -T` を使うよう修正し、stdout リダイレクト時も tmux をバイパスする
   - `host/sandbox`: Copilot の対話/非対話モードを明示判定し、対話モードで TTY が足りない場合は明示エラー、`-p` / `--prompt` では承認オーバーライドを必須化する
-  - `tests/sandbox_cli.test.sh`: help、`.agent-home`、`sandbox copilot`、tmux なしエラー等のテストに加えて、非対話バイパス、`-T` 利用、承認オーバーライド必須、TTY 不足時の明示エラー、終了コード保持のテストを追加・更新する
+  - `host/sandbox`: Copilot の headless invocation を `-p` / `--prompt` 以外にも拡張し、`help` / `version` / stdin オプション入力を tmux なしで直接実行できるようにする
+  - `tests/sandbox_cli.test.sh`: help、`.agent-home`、`sandbox copilot`、tmux なしエラー等のテストに加えて、非対話バイパス、`-T` 利用、承認オーバーライド別名、help/version の direct exec、stdin オプション入力、TTY 不足時の明示エラー、終了コード保持のテストを追加・更新する
 - 削除（Delete）:
   - 該当なし
 - 移動/リネーム（Move/Rename）:
@@ -164,7 +172,7 @@
 - AC-002 → `host/sandbox::ensure_agent_home_dirs`, `Dockerfile`, `docker-compose.yml`, `tests/sandbox_cli.test.sh`
 - AC-003 → `host/sandbox::run_compose_exec_copilot`, `host/sandbox::compute_copilot_session_name`, `host/sandbox::print_help_copilot`, `tests/sandbox_cli.test.sh`
 - AC-003 → `host/sandbox::split_copilot_args`
-- AC-003 → `host/sandbox::copilot_requests_programmatic_mode`, `host/sandbox::copilot_has_approval_override`, `host/sandbox::validate_copilot_invocation`, `host/sandbox::copilot_should_use_tmux`
+- AC-003 → `host/sandbox::copilot_requests_programmatic_mode`, `host/sandbox::copilot_requests_headless_mode`, `host/sandbox::copilot_has_approval_override`, `host/sandbox::validate_copilot_invocation`, `host/sandbox::copilot_should_use_tmux`
 - AC-004 → `host/sandbox::print_help`, `host/sandbox::print_help_tools`, `host/sandbox::print_help_copilot`, `tests/sandbox_cli.test.sh`
 - EC-001 → `host/sandbox::ensure_tmux_available`, `tests/sandbox_cli.test.sh`
 - EC-002 → help 判定ロジック、`tests/sandbox_cli.test.sh`
@@ -179,12 +187,13 @@
     - `help` に Copilot が反映されること
     - `.agent-home/.copilot` が作成されること
     - `sandbox copilot` の tmux 外側起動と内側 compose exec 起動
-    - `sandbox copilot -- --help` が `copilot --help` として pass-through されること
+    - `sandbox copilot -- --help` と `sandbox copilot -- --version` が direct exec として pass-through されること
     - `echo ... | sandbox copilot ...` のような非対話実行で tmux を使わないこと
+    - stdin からオプション列を受ける `copilot` 実行が tmux を使わないこと
     - stdout リダイレクト付きの対話モードは明示エラーになること
     - 非対話実行では `docker compose exec -T` が使われること
     - 非対話実行時に Copilot の失敗終了コードが保持されること
-    - `-p` / `--prompt` 実行では承認オーバーライドが必須であること
+    - `-p` / `--prompt` 実行では `--allow-all-tools` / `--allow-tool` / `--allow-all` / `--yolo` / `COPILOT_ALLOW_ALL` が承認オーバーライドとして認識されること
     - tmux 未導入時にエラー終了すること
   - Frontend: なし
 - どのAC/ECをどのテストで保証するか:
@@ -192,8 +201,8 @@
     - `package.json` の `install-global` に `@github/copilot` が入ること
     - `package.json` の `verify` に `copilot --version` が入ること
   - AC-002 → `tests/sandbox_cli.test.sh` の `.agent-home` 作成確認更新
-  - AC-003 → 新規 `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_is_passed_to_copilot`
-  - AC-003 → 新規 `copilot_noninteractive_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`, `copilot_programmatic_requires_approval_override`
+  - AC-003 → 新規 `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_version_flag_uses_direct_exec`
+  - AC-003 → 新規 `copilot_noninteractive_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`, `copilot_programmatic_requires_approval_override`, `copilot_programmatic_accepts_allow_all_aliases`, `copilot_stdin_option_stream_uses_direct_exec`
   - AC-003 → 新規 `copilot_redirected_stdout_errors_for_interactive_mode`
   - AC-004 → 新規 `help_copilot_mentions_tmux`
   - EC-001 → 新規 `copilot_errors_when_tmux_missing`
