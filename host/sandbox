@@ -467,7 +467,7 @@ copilot_requests_headless_mode() {
     local arg
     for arg in "$@"; do
         case "$arg" in
-            help|version|init|update|plugin|login|logout|-v|--version|--help)
+            help|version|init|update|plugin|login|logout|-v|--version|--help|--acp)
                 return 0
                 ;;
         esac

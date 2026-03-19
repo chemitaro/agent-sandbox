@@ -29,6 +29,7 @@
 - [ ] S07: Copilot の対話/非対話モード境界を明示し、対話モードの TTY 不足は明示エラー、`-p` / `--prompt` には承認オーバーライドを必須化する
 - [ ] S08: Copilot の headless invocation を公式仕様に合わせ、`--allow-all` / `--yolo` と `help` / `version` / stdin オプション入力を direct exec で扱えるようにする
 - [ ] S09: Copilot の公式 headless サブコマンドと tmux セッション名の一意性を保証し、擬似TTYテストを Linux/macOS 両対応にする
+- [ ] S10: Copilot の ACP 起動を headless invocation として許可し、擬似TTY helper が Linux で子プロセス終了コードを返すようにする
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S01
@@ -46,6 +47,7 @@
 - EC-005 → S07
 - EC-005 → S08
 - EC-005 → S09
+- EC-005 → S10
 - 非交渉制約（標準ディレクトリ運用） → S02
 - 非交渉制約（tmux ラッパー） → S03
 - 非交渉制約（非対話時は標準入出力と終了コードを保持） → S05
@@ -53,6 +55,7 @@
 - 非交渉制約（曖昧なモード切替をせず、前提不足は明示エラーにする） → S07
 - 非交渉制約（公式の headless entry point を wrapper が阻害しない） → S08
 - 非交渉制約（ワークスペース間で tmux セッションが衝突しない） → S09
+- 非交渉制約（ACP/擬似TTY経由でも正しい stdio と終了コードを観測できる） → S10
 
 ---
 
@@ -539,6 +542,62 @@
 #### Refactor（振る舞い不変で整理） (任意)
 - 目的:
   - headless サブコマンド判定と test helper を読みやすく保つ
+- 変更対象:
+  - `host/sandbox`
+  - `tests/sandbox_cli.test.sh`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
+- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
+- [ ] コミットした（エージェント）
+
+### S10 — Copilot の ACP 起動を headless invocation として許可し、擬似TTY helper が Linux で子プロセス終了コードを返すようにする (必須)
+- 対象: AC-003 / EC-005
+- 設計参照:
+  - 対象IF/API: IF-007, IF-010
+  - 対象テスト: `copilot_acp_uses_direct_exec`, `copilot_redirected_stdout_errors_for_interactive_mode`
+- このステップで「追加しないこと（スコープ固定）」:
+  - ACP の引数体系や通信仕様自体は wrapper 側で解釈しない
+  - `run_in_pseudo_tty` を本格的な cross-platform ライブラリ化はしない
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
+- 登録例:
+  - （調査）`--acp` と util-linux `script --return` の差分確認
+  - （Red）ACP direct exec と pseudo tty helper の exit status 伝播テスト追加
+  - （Green）`host/sandbox` の headless 判定と `tests/sandbox_cli.test.sh` helper を修正
+  - （Refactor）headless フラグ一覧と helper 分岐を整理
+  - （品質ゲート）`bash tests/sandbox_cli.test.sh`
+  - （報告）`.spec-dock/current/report.md` 更新
+  - （コミット）このステップの区切りでコミット
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: ACP client や stdout リダイレクト付きの対話テストが Linux/macOS の両方で動く必要がある
+- When: `sandbox copilot -- --acp` を呼ぶ、または擬似TTY経由で wrapper の non-zero を観測する
+- Then: `--acp` は tmux を使わず direct exec され、`run_in_pseudo_tty` は util-linux でも子プロセスの終了コードを返す
+- 観測点（UI/HTTP/DB/Log など）: tmux stub ログ、compose exec ログ、終了コード
+- 追加/更新するテスト: `copilot_acp_uses_direct_exec`, `copilot_redirected_stdout_errors_for_interactive_mode`
+
+#### Red（失敗するテストを先に書く） (任意)
+- 期待する失敗:
+  - `--acp` が TTY エラーまたは tmux 経路へ入る
+  - util-linux `script` 経由で子プロセスの non-zero が観測できない
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 追加する概念（このステップで導入する最小単位）:
+  - `--acp` headless flag
+  - util-linux `script -e`
+- 実装方針（最小で。余計な最適化は禁止）:
+  - `copilot_requests_headless_mode` に `--acp` を追加する
+  - `run_in_pseudo_tty` は util-linux 経路で `-e` を付け、BSD フォールバックは維持する
+
+#### Refactor（振る舞い不変で整理） (任意)
+- 目的:
+  - headless flag と pseudo tty helper の責務を明確に保つ
 - 変更対象:
   - `host/sandbox`
   - `tests/sandbox_cli.test.sh`

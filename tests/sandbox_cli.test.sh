@@ -177,8 +177,8 @@ compute_expected_copilot_session_name() {
 run_in_pseudo_tty() {
     local command_string="$1"
 
-    if script -q -c "exit 0" /dev/null >/dev/null 2>&1; then
-        script -q -c "$command_string" /dev/null >/dev/null
+    if script -q -e -c "exit 0" /dev/null >/dev/null 2>&1; then
+        script -q -e -c "$command_string" /dev/null >/dev/null
         return $?
     fi
 
@@ -1607,6 +1607,32 @@ copilot_init_uses_direct_exec() {
     assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
 }
 
+copilot_acp_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- --acp
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for copilot --acp" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" "--acp"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
 copilot_errors_when_tmux_missing() {
     local tmp_dir
     tmp_dir="$(make_fake_sandbox_root)"
@@ -1907,6 +1933,7 @@ run_test "copilot_inner_runs_copilot_and_returns_to_zsh" copilot_inner_runs_copi
 run_test "copilot_help_flag_after_double_dash_uses_direct_exec" copilot_help_flag_after_double_dash_uses_direct_exec
 run_test "copilot_version_flag_uses_direct_exec" copilot_version_flag_uses_direct_exec
 run_test "copilot_init_uses_direct_exec" copilot_init_uses_direct_exec
+run_test "copilot_acp_uses_direct_exec" copilot_acp_uses_direct_exec
 run_test "copilot_errors_when_tmux_missing" copilot_errors_when_tmux_missing
 run_test "copilot_programmatic_requires_approval_override" copilot_programmatic_requires_approval_override
 run_test "copilot_programmatic_accepts_allow_all_aliases" copilot_programmatic_accepts_allow_all_aliases
