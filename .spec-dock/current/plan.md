@@ -26,6 +26,7 @@
 - [ ] S04: help とテストが Copilot 統合後の仕様を保証する
 - [ ] S05: Copilot の非対話利用では tmux をバイパスし、終了コードを保持する
 - [ ] S06: Copilot の非対話利用では `docker compose exec -T` を使い、stdout リダイレクト時も tmux を使わない
+- [ ] S07: Copilot の対話/非対話モード境界を明示し、対話モードの TTY 不足は明示エラー、`-p` / `--prompt` には承認オーバーライドを必須化する
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S01
@@ -40,10 +41,12 @@
 - EC-001 → S05
 - EC-005 → S05
 - EC-005 → S06
+- EC-005 → S07
 - 非交渉制約（標準ディレクトリ運用） → S02
 - 非交渉制約（tmux ラッパー） → S03
 - 非交渉制約（非対話時は標準入出力と終了コードを保持） → S05
 - 非交渉制約（非対話時は TTY を割り当てず、stdout 消費側へ出力を返す） → S06
+- 非交渉制約（曖昧なモード切替をせず、前提不足は明示エラーにする） → S07
 
 ---
 
@@ -361,6 +364,61 @@
 #### Refactor（振る舞い不変で整理） (任意)
 - 目的:
   - 非対話経路の契約を条件レベルではっきりさせる
+- 変更対象:
+  - `host/sandbox`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
+- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
+- [ ] コミットした（エージェント）
+
+### S07 — Copilot の対話/非対話モード境界を明示し、対話モードの TTY 不足は明示エラー、`-p` / `--prompt` には承認オーバーライドを必須化する (必須)
+- 対象: AC-003 / EC-005
+- 設計参照:
+  - 対象IF/API: IF-006, IF-007, IF-008, IF-009
+  - 対象テスト: `copilot_programmatic_requires_approval_override`, `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_errors_for_interactive_mode`
+- このステップで「追加しないこと（スコープ固定）」:
+  - Copilot の承認仕様をラッパー側で独自実装しない
+  - `sandbox codex` など他サブコマンドの TTY 判定は変更しない
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
+- 登録例:
+  - （調査）最新 PR レビューと現行 S06 実装の差分確認
+  - （Red）TTY 不足時の暗黙モード変更と承認不足 `-p` 実行の失敗テスト追加
+  - （Green）`host/sandbox` に Copilot 呼び出し前検証を追加
+  - （Refactor）programmatic 判定と承認判定の責務分離
+  - （品質ゲート）`bash tests/sandbox_cli.test.sh`
+  - （報告）`.spec-dock/current/report.md` 更新
+  - （コミット）このステップの区切りでコミット
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `sandbox copilot [options] -- [copilot args...]` を対話シェル、パイプ、リダイレクト、CI から呼び出す
+- When: `sandbox copilot > out.txt` のように対話モードなのに TTY が不足している、または `sandbox copilot -- -- -p "fix"` のように承認オーバーライド無しで programmatic mode を要求する
+- Then: 対話モードは明示エラーで止まり、programmatic mode は `--allow-all-tools` / `--allow-tool ...` / `COPILOT_ALLOW_ALL` がある場合にのみ `exec -T` 経路へ進む
+- 観測点（UI/HTTP/DB/Log など）: stderr のエラーメッセージ、tmux stub ログ、compose exec ログ、終了コード
+- 追加/更新するテスト: `copilot_programmatic_requires_approval_override`, `copilot_noninteractive_bypasses_tmux`, `copilot_redirected_stdout_errors_for_interactive_mode`
+
+#### Red（失敗するテストを先に書く） (任意)
+- 期待する失敗:
+  - 対話モードが stdout リダイレクト時に非対話経路へ暗黙変更される
+  - `-p` / `--prompt` が承認オーバーライド無しでも実行される
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 追加する概念（このステップで導入する最小単位）:
+  - `copilot_has_approval_override`
+  - `validate_copilot_invocation`
+- 実装方針（最小で。余計な最適化は禁止）:
+  - `-p` / `--prompt` を programmatic mode として扱い、承認オーバーライドの有無を先に検証する
+  - programmatic mode でない場合は、stdin と stdout の両方が TTY でない限り明示エラーにする
+
+#### Refactor（振る舞い不変で整理） (任意)
+- 目的:
+  - Copilot 呼び出し前検証と tmux 判定の責務を分けて読みやすくする
 - 変更対象:
   - `host/sandbox`
 

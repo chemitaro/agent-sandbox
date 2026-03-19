@@ -447,7 +447,7 @@ copilot_requests_programmatic_mode() {
     local arg
     for arg in "$@"; do
         case "$arg" in
-            -p|--prompt|--prompt=*|-p*|-s|--silent)
+            -p|--prompt|--prompt=*|-p*)
                 return 0
                 ;;
         esac
@@ -455,14 +455,68 @@ copilot_requests_programmatic_mode() {
     return 1
 }
 
+copilot_has_approval_override() {
+    local allow_all="${COPILOT_ALLOW_ALL:-}"
+    if [[ -n "$allow_all" ]]; then
+        case "${allow_all,,}" in
+            0|false|no|off)
+                ;;
+            *)
+                return 0
+                ;;
+        esac
+    fi
+
+    local expect_allow_tool_value=false
+    local arg
+    for arg in "$@"; do
+        if [[ "$expect_allow_tool_value" == true ]]; then
+            return 0
+        fi
+        case "$arg" in
+            --allow-all-tools|--allow-all-tools=*)
+                return 0
+                ;;
+            --allow-tool)
+                expect_allow_tool_value=true
+                ;;
+            --allow-tool=*)
+                return 0
+                ;;
+        esac
+    done
+    return 1
+}
+
+validate_copilot_invocation() {
+    if [[ -n "${SANDBOX_COPILOT_FORCE_TMUX:-}" ]]; then
+        return 0
+    fi
+
+    if copilot_requests_programmatic_mode "$@"; then
+        if ! copilot_has_approval_override "$@"; then
+            echo "Programmatic copilot usage with -p/--prompt requires --allow-all-tools, --allow-tool <tool>, or COPILOT_ALLOW_ALL." >&2
+            return 1
+        fi
+        return 0
+    fi
+
+    if [[ ! -t 0 || ! -t 1 ]]; then
+        echo "Interactive copilot usage requires a TTY on stdin and stdout. Use sandbox copilot -- -- -p ... with approval flags for noninteractive execution." >&2
+        return 1
+    fi
+
+    return 0
+}
+
 copilot_should_use_tmux() {
     if [[ -n "${SANDBOX_COPILOT_FORCE_TMUX:-}" ]]; then
         return 0
     fi
-    if [[ ! -t 0 || ! -t 1 ]]; then
+    if copilot_requests_programmatic_mode "$@"; then
         return 1
     fi
-    if copilot_requests_programmatic_mode "$@"; then
+    if [[ ! -t 0 || ! -t 1 ]]; then
         return 1
     fi
     return 0
@@ -1246,6 +1300,7 @@ Options:
   -h, --help
 Notes:
   Arguments after "--" are passed to copilot (e.g., sandbox copilot -- --help).
+  Noninteractive -p/--prompt usage requires --allow-all-tools, --allow-tool, or COPILOT_ALLOW_ALL.
   必要な場合は sandbox shell で copilot を直接実行してください。
 USAGE
 }
@@ -1408,6 +1463,15 @@ main() {
 
     if [[ "$subcommand" == "copilot" ]]; then
         split_copilot_args "$@"
+        if (( ${#COPILOT_ARGS[@]} > 0 )); then
+            if ! validate_copilot_invocation "${COPILOT_ARGS[@]}"; then
+                exit 1
+            fi
+        else
+            if ! validate_copilot_invocation; then
+                exit 1
+            fi
+        fi
         local copilot_use_tmux=false
         if (( ${#COPILOT_ARGS[@]} > 0 )); then
             if copilot_should_use_tmux "${COPILOT_ARGS[@]}"; then
