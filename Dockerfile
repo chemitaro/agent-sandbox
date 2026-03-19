@@ -88,8 +88,8 @@ RUN SNIPPET="export PROMPT_COMMAND='history -a' && export HISTFILE=/commandhisto
 # Create sandbox and workspace directories and set permissions
 # /opt/sandbox: Internal sandbox tools (isolated from host)
 # /srv/${PRODUCT_NAME}: Legacy workspace path (container-side). Dynamic mount uses /srv/mount at runtime.
-RUN mkdir -p /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config/opencode /home/node/.local/share/opencode /home/node/.cache/opencode /home/node/.config/nvim && \
-  chown -R node:node /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.codex /home/node/.gemini /home/node/.config /home/node/.local /home/node/.cache && \
+RUN mkdir -p /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.copilot /home/node/.codex /home/node/.gemini /home/node/.config/opencode /home/node/.local/share/opencode /home/node/.cache/opencode /home/node/.config/nvim && \
+  chown -R node:node /opt/sandbox /srv/${PRODUCT_NAME} /home/node/.claude /home/node/.copilot /home/node/.codex /home/node/.gemini /home/node/.config /home/node/.local /home/node/.cache && \
   ln -s /home/node/.codex /home/node/.config/codex || true && \
   ln -s /home/node/.gemini /home/node/.config/gemini || true
 

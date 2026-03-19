@@ -26,6 +26,7 @@ services:
       - sandbox-npm-cache:/home/node/.npm/_cache
       - ./.agent-home/commandhistory:/commandhistory
       - ./.agent-home/.claude:/home/node/.claude
+      - ./.agent-home/.copilot:/home/node/.copilot
       - ./.agent-home/.codex:/home/node/.codex
       - ./.agent-home/.gemini:/home/node/.gemini
       - ./.agent-home/.opencode:/home/node/.config/opencode

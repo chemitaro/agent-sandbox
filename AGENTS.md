@@ -15,7 +15,7 @@
 - `sandbox up` — build and start the container via Docker Compose.
 - `sandbox shell` — open `/bin/zsh` inside the container (starts it if needed).
 - `sandbox status|stop|down` — inspect/stop/remove the container.
-- (Inside container) `npm run verify` — sanity-check installed CLIs (codex/claude/gemini/opencode).
+- (Inside container) `npm run verify` — sanity-check installed CLIs (codex/claude/copilot/gemini/opencode).
 
 ## Coding Style & Naming Conventions
 - Bash-first repo: scripts use `#!/bin/bash` and `set -euo pipefail`; prefer explicit quoting and `local` variables.
