@@ -10,13 +10,14 @@
   "dependencies": {
     "@openai/codex": "latest",
     "@anthropic-ai/claude-code": "latest",
+    "@github/copilot": "latest",
     "@google/gemini-cli": "latest",
     "@sasazame/ccresume": "latest",
     "opencode-ai": "latest"
   },
   "scripts": {
-    "install-global": "npm install -g @anthropic-ai/claude-code @google/gemini-cli @sasazame/ccresume @openai/codex opencode-ai",
-    "verify": "claude --version && gemini --version && opencode --version && npx -y @openai/codex --version"
+    "install-global": "npm install -g @anthropic-ai/claude-code @github/copilot @google/gemini-cli @sasazame/ccresume @openai/codex opencode-ai",
+    "verify": "claude --version && copilot --version && gemini --version && opencode --version && npx -y @openai/codex --version"
   },
   "keywords": [
     "docker",

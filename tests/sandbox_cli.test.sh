@@ -77,6 +77,9 @@ if [[ "$1" == "compose" ]]; then
             echo "TZ=${TZ-}"
         fi
     } >> "${STUB_DOCKER_LOG}"
+    if [[ "${1:-}" == "exec" ]]; then
+        exit "${STUB_DOCKER_COMPOSE_EXEC_EXIT:-0}"
+    fi
     exit 0
 fi
 
@@ -162,6 +165,26 @@ compute_expected_compose_name() {
     compute_compose_project_name "$abs_root" "$abs_workdir"
 }
 
+compute_expected_copilot_session_name() {
+    local tmp_dir="$1"
+    local caller_pwd="$2"
+    # shellcheck source=/dev/null
+    source "$tmp_dir/host/sandbox"
+    CALLER_PWD="$caller_pwd"
+    compute_copilot_session_name
+}
+
+run_in_pseudo_tty() {
+    local command_string="$1"
+
+    if script -q -e -c "exit 0" /dev/null >/dev/null 2>&1; then
+        script -q -e -c "$command_string" /dev/null >/dev/null
+        return $?
+    fi
+
+    script -q /dev/null /bin/bash -lc "$command_string" >/dev/null
+}
+
 assert_log_contains() {
     local log_file="$1"
     local expected="$2"
@@ -213,9 +236,42 @@ help_top_level() {
     run_cmd "$tmp_dir/host/sandbox" -h
     assert_exit_code 0 "$RUN_CODE"
     assert_stdout_contains "Usage:" "$RUN_STDOUT"
+    assert_stdout_contains "copilot" "$RUN_STDOUT"
 
     assert_no_files_created "$tmp_dir"
     assert_no_stub_calls "$tmp_dir"
+}
+
+help_copilot_mentions_tmux() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_stub_bins "$tmp_dir"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --help
+    assert_exit_code 0 "$RUN_CODE"
+    assert_stdout_contains "Usage: sandbox copilot" "$RUN_STDOUT"
+    assert_stdout_contains "tmux" "$RUN_STDOUT"
+    assert_stdout_contains "Arguments after \"--\" are passed to copilot" "$RUN_STDOUT"
+
+    assert_no_files_created "$tmp_dir"
+    assert_no_stub_calls "$tmp_dir"
+}
+
+package_json_lists_copilot_install_and_verify() {
+    local package_json="$REPO_ROOT/package.json"
+
+    if ! grep -Fq '"@github/copilot": "latest"' "$package_json"; then
+        echo "Expected @github/copilot dependency in package.json" >&2
+        return 1
+    fi
+    if ! grep -Fq '@github/copilot' "$package_json"; then
+        echo "Expected @github/copilot in install-global" >&2
+        return 1
+    fi
+    if ! grep -Fq 'copilot --version' "$package_json"; then
+        echo "Expected copilot --version in verify" >&2
+        return 1
+    fi
 }
 
 help_subcommand() {
@@ -460,7 +516,7 @@ up_creates_agent_home_dirs() {
 
     run_cmd "$tmp_dir/host/sandbox" up --mount-root "$root" --workdir "$root"
     assert_exit_code 0 "$RUN_CODE"
-    if [[ ! -d "$tmp_dir/.agent-home/.claude" || ! -d "$tmp_dir/.agent-home/.codex" || ! -d "$tmp_dir/.agent-home/commandhistory" ]]; then
+    if [[ ! -d "$tmp_dir/.agent-home/.claude" || ! -d "$tmp_dir/.agent-home/.copilot" || ! -d "$tmp_dir/.agent-home/.codex" || ! -d "$tmp_dir/.agent-home/commandhistory" ]]; then
         echo "agent-home directories should be created" >&2
         return 1
     fi
@@ -757,7 +813,7 @@ build_only() {
         echo ".env should be created for build" >&2
         return 1
     fi
-    if [[ ! -d "$tmp_dir/.agent-home/.claude" ]]; then
+    if [[ ! -d "$tmp_dir/.agent-home/.claude" || ! -d "$tmp_dir/.agent-home/.copilot" ]]; then
         echo ".agent-home should be created for build" >&2
         return 1
     fi
@@ -1390,10 +1446,445 @@ codex_errors_when_tmux_missing() {
     assert_stderr_contains "tmux command not found" "$RUN_STDERR"
 }
 
+copilot_outer_uses_tmux_and_session_name() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+
+    export STUB_TMUX_HAS_SESSION=0
+
+    local base_dir="$tmp_dir/My.Project:One"
+    mkdir -p "$base_dir"
+
+    run_cmd env CALLER_PWD="$base_dir" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
+    assert_exit_code 0 "$RUN_CODE"
+
+    local expected_session
+    expected_session="$(compute_expected_copilot_session_name "$tmp_dir" "$base_dir")"
+    assert_log_contains "$tmux_log" "has-session"
+    assert_log_contains "$tmux_log" "new-session"
+    assert_log_contains "$tmux_log" "=$expected_session"
+    assert_log_contains "$tmux_log" "SANDBOX_COPILOT_NO_TMUX=1"
+    assert_log_contains "$tmux_log" "$tmp_dir/host/sandbox"
+    assert_log_not_contains "$COMPOSE_LOG_FILE" "CMD="
+    assert_no_files_created "$tmp_dir"
+}
+
+copilot_session_name_disambiguates_same_basename_paths() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+
+    export STUB_TMUX_HAS_SESSION=0
+
+    local path_a="$tmp_dir/worktrees/app"
+    local path_b="$tmp_dir/other/app"
+    mkdir -p "$path_a" "$path_b"
+
+    run_cmd env CALLER_PWD="$path_a" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
+    assert_exit_code 0 "$RUN_CODE"
+    local expected_a
+    expected_a="$(compute_expected_copilot_session_name "$tmp_dir" "$path_a")"
+    assert_log_contains "$tmux_log" "=$expected_a"
+
+    : > "$tmux_log"
+    run_cmd env CALLER_PWD="$path_b" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
+    assert_exit_code 0 "$RUN_CODE"
+    local expected_b
+    expected_b="$(compute_expected_copilot_session_name "$tmp_dir" "$path_b")"
+    assert_log_contains "$tmux_log" "=$expected_b"
+
+    if [[ "$expected_a" == "$expected_b" ]]; then
+        echo "Expected distinct session names for different CALLER_PWD values" >&2
+        return 1
+    fi
+}
+
+copilot_inner_runs_copilot_and_returns_to_zsh() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    local workdir="$root/subdir"
+    setup_env_for_up "$tmp_dir" "$root" "$workdir"
+
+    SANDBOX_COPILOT_NO_TMUX=1 SANDBOX_COPILOT_FORCE_TMUX=1 run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$workdir"
+    assert_exit_code 0 "$RUN_CODE"
+    assert_log_contains "$log_file" "CMD=docker compose up -d --build"
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/subdir"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" 'exit\ \$status'
+    assert_log_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_help_flag_after_double_dash_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- --help
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ "$RUN_STDOUT" == *"Usage: sandbox"* ]]; then
+        echo "Sandbox help was printed unexpectedly" >&2
+        return 1
+    fi
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for copilot --help" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "--help"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_version_flag_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- --version
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for copilot --version" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "--version"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_init_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- init
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for copilot init" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" "init"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_acp_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- --acp
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for copilot --acp" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" "--acp"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_errors_when_tmux_missing() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    local no_tmux_path
+    no_tmux_path="$(mktemp -d)"
+    ln -sf "$(command -v dirname)" "$no_tmux_path/dirname"
+    ln -sf "$(command -v basename)" "$no_tmux_path/basename"
+    ln -sf "$(command -v realpath)" "$no_tmux_path/realpath"
+    ln -sf "$(command -v readlink)" "$no_tmux_path/readlink"
+
+    run_cmd env -i HOME="$tmp_dir" PATH="$no_tmux_path" SANDBOX_COPILOT_FORCE_TMUX=1 /bin/bash "$tmp_dir/host/sandbox" copilot
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected tmux error for copilot" >&2
+        return 1
+    fi
+    assert_stderr_contains "tmux command not found" "$RUN_STDERR"
+}
+
+copilot_noninteractive_bypasses_tmux() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" --allow-all-tools 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used for noninteractive copilot" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" "-p"
+    assert_log_contains "$log_file" "Say\\ hello"
+    assert_log_contains "$log_file" "--allow-all-tools"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_noninteractive_preserves_exit_status() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+    export STUB_DOCKER_COMPOSE_EXEC_EXIT=42
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" --allow-all-tools 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+    unset STUB_DOCKER_COMPOSE_EXEC_EXIT
+
+    assert_exit_code 42 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used for noninteractive copilot" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_programmatic_requires_approval_override() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected programmatic copilot without approval override to fail" >&2
+        return 1
+    fi
+    assert_stderr_contains "requires --allow-all-tools" "$RUN_STDERR"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used when approval override is missing" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_not_contains "$log_file" "CMD="
+}
+
+copilot_programmatic_accepts_allow_all_aliases() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" --allow-all 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux with --allow-all" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "--allow-all"
+    : > "$log_file"
+    : > "$tmux_log"
+
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" --yolo 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux with --yolo" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "--yolo"
+}
+
+copilot_stdin_option_stream_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf '%s\n' '--version' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for stdin option stream" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "/bin/zsh -lc copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_redirected_stdout_errors_for_interactive_mode() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local out_file="$tmp_dir/copilot.out"
+    local stderr_file="$tmp_dir/copilot.err"
+    local command_string
+    printf -v command_string '%q copilot --mount-root %q --workdir %q >%q 2>%q' \
+        "$tmp_dir/host/sandbox" "$root" "$root" "$out_file" "$stderr_file"
+    set +e
+    run_in_pseudo_tty "$command_string"
+    RUN_CODE=$?
+    RUN_STDOUT="$(cat "$out_file" 2>/dev/null || true)"
+    RUN_STDERR="$(cat "$stderr_file" 2>/dev/null || true)"
+    set -e
+
+    if [[ "$RUN_CODE" -eq 0 ]]; then
+        echo "Expected interactive copilot with redirected stdout to fail" >&2
+        return 1
+    fi
+    assert_stderr_contains "requires a TTY on stdin and stdout" "$RUN_STDERR"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used when interactive stdout is redirected" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_not_contains "$log_file" "CMD="
+}
+
 run_test "help_top_level" help_top_level
 run_test "help_subcommand" help_subcommand
 run_test "help_any_position" help_any_position
+run_test "help_copilot_mentions_tmux" help_copilot_mentions_tmux
 run_test "help_codex_mentions_auto_bootstrap_and_conflicts" help_codex_mentions_auto_bootstrap_and_conflicts
+run_test "package_json_lists_copilot_install_and_verify" package_json_lists_copilot_install_and_verify
 run_test "help_has_no_side_effects" help_has_no_side_effects
 run_test "name_one_line_stdout" name_one_line_stdout
 run_test "docker_cmd_missing_errors" docker_cmd_missing_errors
@@ -1436,3 +1927,17 @@ run_test "codex_inner_git_rev_parse_failure_warns_and_runs_bootstrap" codex_inne
 run_test "codex_rejects_conflicting_args_before_compose" codex_rejects_conflicting_args_before_compose
 run_test "codex_help_flag_after_double_dash_is_passed_to_codex" codex_help_flag_after_double_dash_is_passed_to_codex
 run_test "codex_errors_when_tmux_missing" codex_errors_when_tmux_missing
+run_test "copilot_outer_uses_tmux_and_session_name" copilot_outer_uses_tmux_and_session_name
+run_test "copilot_session_name_disambiguates_same_basename_paths" copilot_session_name_disambiguates_same_basename_paths
+run_test "copilot_inner_runs_copilot_and_returns_to_zsh" copilot_inner_runs_copilot_and_returns_to_zsh
+run_test "copilot_help_flag_after_double_dash_uses_direct_exec" copilot_help_flag_after_double_dash_uses_direct_exec
+run_test "copilot_version_flag_uses_direct_exec" copilot_version_flag_uses_direct_exec
+run_test "copilot_init_uses_direct_exec" copilot_init_uses_direct_exec
+run_test "copilot_acp_uses_direct_exec" copilot_acp_uses_direct_exec
+run_test "copilot_errors_when_tmux_missing" copilot_errors_when_tmux_missing
+run_test "copilot_programmatic_requires_approval_override" copilot_programmatic_requires_approval_override
+run_test "copilot_programmatic_accepts_allow_all_aliases" copilot_programmatic_accepts_allow_all_aliases
+run_test "copilot_noninteractive_bypasses_tmux" copilot_noninteractive_bypasses_tmux
+run_test "copilot_stdin_option_stream_uses_direct_exec" copilot_stdin_option_stream_uses_direct_exec
+run_test "copilot_redirected_stdout_errors_for_interactive_mode" copilot_redirected_stdout_errors_for_interactive_mode
+run_test "copilot_noninteractive_preserves_exit_status" copilot_noninteractive_preserves_exit_status
