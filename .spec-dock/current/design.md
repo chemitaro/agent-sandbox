@@ -25,7 +25,8 @@
   - Copilot CLI の非対話経路では `docker compose exec -T` を使い、Compose 既定の TTY 割り当てを無効化する
   - `-p` / `--prompt` を使う programmatic 実行は、`--allow-all-tools` / `--allow-tool ...` / `--allow-all` / `--yolo` または `COPILOT_ALLOW_ALL` による承認オーバーライドがある場合にのみ非対話経路へ流す
   - 対話モードの `copilot` / `copilot --interactive` は TTY 前提のまま扱い、stdin または stdout が非 TTY の場合は非対話経路へ暗黙変換せず明示エラーにする
-  - `copilot help [topic]`、`version`、`-v/--version`、stdin からオプション列を受ける headless invocation は tmux を使わず直接実行できる
+  - `copilot help [topic]`、`version`、`-v/--version`、`init`、`update`、`plugin ...`、`login`、`logout`、stdin からオプション列を受ける headless invocation は tmux を使わず直接実行できる
+  - Copilot の tmux セッション名はワークスペースごとに衝突しない
 - MUST NOT:
   - `COPILOT_HOME` による別ディレクトリ設計を持ち込まない
   - `~/.copilot` 以外の追加 XDG/config/cache mount を推測で足さない
@@ -81,10 +82,10 @@
   3. `docker-compose.yml` で `.agent-home/.copilot:/home/node/.copilot` を mount する
 - Flow for AC-003:
   1. `sandbox copilot` 実行時、外側では tmux セッションの存在を確認する
-  2. `-p` / `--prompt`、`help`、`version`、`-v/--version`、または stdin 非 TTYかつ引数空のケースを headless invocation とみなす
+  2. `-p` / `--prompt`、`help`、`version`、`-v/--version`、`init`、`update`、`plugin`、`login`、`logout`、または stdin 非 TTYかつ引数空のケースを headless invocation とみなす
   3. `-p` / `--prompt` を含む headless invocation では、`--allow-all-tools` / `--allow-tool ...` / `--allow-all` / `--yolo` / `COPILOT_ALLOW_ALL` を検査する
   4. `-p` / `--prompt` で承認オーバーライドが揃っている場合のみ tmux をバイパスして `docker compose exec -T` の直接実行へ進む
-  5. `help` / `version` / stdin オプション入力の headless invocation は、承認オーバーライド不要で直接実行へ進む
+  5. `help` / `version` / `init` / `update` / `plugin ...` / `login` / `logout` / stdin オプション入力の headless invocation は、承認オーバーライド不要で直接実行へ進む
   6. `-p` / `--prompt` で承認オーバーライドが無い場合は、必要なフラグまたは環境変数を案内して明示エラーにする
   7. headless invocation でない場合は対話モードとして扱い、`stdin` と `stdout` の両方が TTY のときだけ tmux セッションを生成または再利用する
   8. 対話モードで `stdin` または `stdout` のどちらかが非 TTY の場合は、非対話経路へ暗黙変換せず明示エラーにする
@@ -123,7 +124,7 @@
   - Errors/Exceptions: なし
 - IF-010: `host/sandbox::copilot_requests_headless_mode([copilot_args...])`
   - Input: `copilot` へ渡す引数配列と stdin の TTY 状態
-  - Output: `-p` / `--prompt`、`help`、`version`、`-v/--version`、stdin オプション入力など、tmux を使わず直接実行すべき headless invocation かを判定する
+  - Output: `-p` / `--prompt`、`help`、`version`、`-v/--version`、`init`、`update`、`plugin`、`login`、`logout`、stdin オプション入力など、tmux を使わず直接実行すべき headless invocation かを判定する
   - Errors/Exceptions: なし
 - IF-008: `host/sandbox::copilot_has_approval_override([copilot_args...])`
   - Input: `copilot` へ渡す引数配列と `COPILOT_ALLOW_ALL`
@@ -139,7 +140,7 @@
   - Errors/Exceptions: なし
 - IF-003: `host/sandbox::compute_copilot_session_name()`
   - Input: `CALLER_PWD`
-  - Output: `<sanitized-base>-copilot-sandbox`
+  - Output: `<sanitized-base>-<hash12>-copilot-sandbox`
   - Errors/Exceptions: なし
 - IF-004: `host/sandbox::print_help_copilot()`
   - Input: なし
@@ -157,8 +158,9 @@
   - `host/sandbox`: Copilot の非対話時 tmux バイパスと、Copilot 終了コードを保持する実行ラッパーに修正する
   - `host/sandbox`: Copilot の非対話時は `docker compose exec -T` を使うよう修正し、stdout リダイレクト時も tmux をバイパスする
   - `host/sandbox`: Copilot の対話/非対話モードを明示判定し、対話モードで TTY が足りない場合は明示エラー、`-p` / `--prompt` では承認オーバーライドを必須化する
-  - `host/sandbox`: Copilot の headless invocation を `-p` / `--prompt` 以外にも拡張し、`help` / `version` / stdin オプション入力を tmux なしで直接実行できるようにする
-  - `tests/sandbox_cli.test.sh`: help、`.agent-home`、`sandbox copilot`、tmux なしエラー等のテストに加えて、非対話バイパス、`-T` 利用、承認オーバーライド別名、help/version の direct exec、stdin オプション入力、TTY 不足時の明示エラー、終了コード保持のテストを追加・更新する
+  - `host/sandbox`: Copilot の headless invocation を `-p` / `--prompt` 以外にも拡張し、`help` / `version` / `init` / `update` / `plugin ...` / `login` / `logout` / stdin オプション入力を tmux なしで直接実行できるようにする
+  - `host/sandbox`: Copilot の tmux セッション名をフルパス由来のハッシュ付きに変更し、basename 衝突を避ける
+  - `tests/sandbox_cli.test.sh`: help、`.agent-home`、`sandbox copilot`、tmux なしエラー等のテストに加えて、非対話バイパス、`-T` 利用、承認オーバーライド別名、公式 headless サブコマンド、help/version の direct exec、stdin オプション入力、TTY 不足時の明示エラー、セッション名一意性、終了コード保持のテストを追加・更新する
 - 削除（Delete）:
   - 該当なし
 - 移動/リネーム（Move/Rename）:
@@ -188,12 +190,14 @@
     - `.agent-home/.copilot` が作成されること
     - `sandbox copilot` の tmux 外側起動と内側 compose exec 起動
     - `sandbox copilot -- --help` と `sandbox copilot -- --version` が direct exec として pass-through されること
+    - `sandbox copilot -- init` や `sandbox copilot -- plugin ...` などの公式サブコマンドが direct exec として pass-through されること
     - `echo ... | sandbox copilot ...` のような非対話実行で tmux を使わないこと
     - stdin からオプション列を受ける `copilot` 実行が tmux を使わないこと
     - stdout リダイレクト付きの対話モードは明示エラーになること
     - 非対話実行では `docker compose exec -T` が使われること
     - 非対話実行時に Copilot の失敗終了コードが保持されること
     - `-p` / `--prompt` 実行では `--allow-all-tools` / `--allow-tool` / `--allow-all` / `--yolo` / `COPILOT_ALLOW_ALL` が承認オーバーライドとして認識されること
+    - 別ワークスペースでも tmux セッション名が衝突しないこと
     - tmux 未導入時にエラー終了すること
   - Frontend: なし
 - どのAC/ECをどのテストで保証するか:
@@ -201,7 +205,7 @@
     - `package.json` の `install-global` に `@github/copilot` が入ること
     - `package.json` の `verify` に `copilot --version` が入ること
   - AC-002 → `tests/sandbox_cli.test.sh` の `.agent-home` 作成確認更新
-  - AC-003 → 新規 `copilot_outer_uses_tmux_and_session_name`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_version_flag_uses_direct_exec`
+  - AC-003 → 新規 `copilot_outer_uses_tmux_and_session_name`, `copilot_session_name_disambiguates_same_basename_paths`, `copilot_inner_runs_copilot_and_returns_to_zsh`, `copilot_help_flag_after_double_dash_uses_direct_exec`, `copilot_version_flag_uses_direct_exec`, `copilot_init_uses_direct_exec`
   - AC-003 → 新規 `copilot_noninteractive_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`, `copilot_programmatic_requires_approval_override`, `copilot_programmatic_accepts_allow_all_aliases`, `copilot_stdin_option_stream_uses_direct_exec`
   - AC-003 → 新規 `copilot_redirected_stdout_errors_for_interactive_mode`
   - AC-004 → 新規 `help_copilot_mentions_tmux`

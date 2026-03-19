@@ -28,6 +28,7 @@
 - [ ] S06: Copilot の非対話利用では `docker compose exec -T` を使い、stdout リダイレクト時も tmux を使わない
 - [ ] S07: Copilot の対話/非対話モード境界を明示し、対話モードの TTY 不足は明示エラー、`-p` / `--prompt` には承認オーバーライドを必須化する
 - [ ] S08: Copilot の headless invocation を公式仕様に合わせ、`--allow-all` / `--yolo` と `help` / `version` / stdin オプション入力を direct exec で扱えるようにする
+- [ ] S09: Copilot の公式 headless サブコマンドと tmux セッション名の一意性を保証し、擬似TTYテストを Linux/macOS 両対応にする
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S01
@@ -44,12 +45,14 @@
 - EC-005 → S06
 - EC-005 → S07
 - EC-005 → S08
+- EC-005 → S09
 - 非交渉制約（標準ディレクトリ運用） → S02
 - 非交渉制約（tmux ラッパー） → S03
 - 非交渉制約（非対話時は標準入出力と終了コードを保持） → S05
 - 非交渉制約（非対話時は TTY を割り当てず、stdout 消費側へ出力を返す） → S06
 - 非交渉制約（曖昧なモード切替をせず、前提不足は明示エラーにする） → S07
 - 非交渉制約（公式の headless entry point を wrapper が阻害しない） → S08
+- 非交渉制約（ワークスペース間で tmux セッションが衝突しない） → S09
 
 ---
 
@@ -480,6 +483,65 @@
   - headless invocation 判定を対話判定から切り離して読みやすくする
 - 変更対象:
   - `host/sandbox`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
+- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
+- [ ] コミットした（エージェント）
+
+### S09 — Copilot の公式 headless サブコマンドと tmux セッション名の一意性を保証し、擬似TTYテストを Linux/macOS 両対応にする (必須)
+- 対象: AC-003 / EC-005
+- 設計参照:
+  - 対象IF/API: IF-003, IF-007, IF-010
+  - 対象テスト: `copilot_init_uses_direct_exec`, `copilot_session_name_disambiguates_same_basename_paths`, `copilot_redirected_stdout_errors_for_interactive_mode`
+- このステップで「追加しないこと（スコープ固定）」:
+  - Copilot の公式サブコマンド以外を推測で headless 扱いしない
+  - tmux セッション名変更で Compose container 名や project 名の規則までは変えない
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
+- 登録例:
+  - （調査）レビュー指摘と現行 headless 判定/セッション名生成/擬似TTYテストの差分確認
+  - （Red）`init` direct exec、同 basename 別パス衝突、Linux util-linux `script` 互換の失敗テスト追加
+  - （Green）`host/sandbox` の headless サブコマンド判定と session 名生成を修正
+  - （Refactor）test helper を BSD/util-linux 両対応に整理
+  - （品質ゲート）`bash tests/sandbox_cli.test.sh`
+  - （報告）`.spec-dock/current/report.md` 更新
+  - （コミット）このステップの区切りでコミット
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: basename が同じ別ワークスペースや、`sandbox copilot -- init` のような公式サブコマンド実行がある
+- When: `sandbox copilot -- init` を非TTY環境から呼ぶ、または basename が同じ別ディレクトリから `sandbox copilot` を呼ぶ
+- Then: `init` は tmux を使わず direct exec され、tmux セッション名はフルパス差分を反映して衝突しない
+- 観測点（UI/HTTP/DB/Log など）: tmux stub ログ、compose exec ログ、セッション名文字列、終了コード
+- 追加/更新するテスト: `copilot_init_uses_direct_exec`, `copilot_session_name_disambiguates_same_basename_paths`, `copilot_redirected_stdout_errors_for_interactive_mode`
+
+#### Red（失敗するテストを先に書く） (任意)
+- 期待する失敗:
+  - `init` が TTY 必須エラーになる
+  - basename が同じ別ディレクトリで同じ tmux セッション名になる
+  - Linux util-linux `script` で擬似TTYテストが起動しない
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 追加する概念（このステップで導入する最小単位）:
+  - 公式 headless サブコマンド判定
+  - hash 付き Copilot session 名
+  - `script` 実行 helper
+- 実装方針（最小で。余計な最適化は禁止）:
+  - headless 判定には `init` / `update` / `plugin` / `login` / `logout` を追加する
+  - session 名は basename に `CALLER_PWD` の hash を足して一意化する
+  - 擬似TTYテストは `script -c` が使える環境ではそれを使い、使えない環境では BSD 形式へフォールバックする
+
+#### Refactor（振る舞い不変で整理） (任意)
+- 目的:
+  - headless サブコマンド判定と test helper を読みやすく保つ
+- 変更対象:
+  - `host/sandbox`
+  - `tests/sandbox_cli.test.sh`
 
 #### ステップ末尾（省略しない） (必須)
 - [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した

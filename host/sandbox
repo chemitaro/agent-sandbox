@@ -467,10 +467,13 @@ copilot_requests_headless_mode() {
     local arg
     for arg in "$@"; do
         case "$arg" in
-            help|version|-v|--version|--help)
+            help|version|init|update|plugin|login|logout|-v|--version|--help)
                 return 0
                 ;;
         esac
+        if [[ "$arg" != -* ]]; then
+            break
+        fi
     done
 
     return 1
@@ -1105,10 +1108,12 @@ compute_codex_session_name() {
 
 compute_copilot_session_name() {
     local base
+    local hash12
     base="$(basename "$CALLER_PWD")"
     base="${base//:/_}"
     base="${base//./_}"
-    echo "${base}-copilot-sandbox"
+    hash12="$(compute_hash12 "$CALLER_PWD")"
+    echo "${base}-${hash12}-copilot-sandbox"
 }
 
 ensure_docker_available() {

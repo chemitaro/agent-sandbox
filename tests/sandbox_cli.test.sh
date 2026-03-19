@@ -165,6 +165,26 @@ compute_expected_compose_name() {
     compute_compose_project_name "$abs_root" "$abs_workdir"
 }
 
+compute_expected_copilot_session_name() {
+    local tmp_dir="$1"
+    local caller_pwd="$2"
+    # shellcheck source=/dev/null
+    source "$tmp_dir/host/sandbox"
+    CALLER_PWD="$caller_pwd"
+    compute_copilot_session_name
+}
+
+run_in_pseudo_tty() {
+    local command_string="$1"
+
+    if script -q -c "exit 0" /dev/null >/dev/null 2>&1; then
+        script -q -c "$command_string" /dev/null >/dev/null
+        return $?
+    fi
+
+    script -q /dev/null /bin/bash -lc "$command_string" >/dev/null
+}
+
 assert_log_contains() {
     local log_file="$1"
     local expected="$2"
@@ -1441,7 +1461,8 @@ copilot_outer_uses_tmux_and_session_name() {
     run_cmd env CALLER_PWD="$base_dir" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
     assert_exit_code 0 "$RUN_CODE"
 
-    local expected_session="My_Project_One-copilot-sandbox"
+    local expected_session
+    expected_session="$(compute_expected_copilot_session_name "$tmp_dir" "$base_dir")"
     assert_log_contains "$tmux_log" "has-session"
     assert_log_contains "$tmux_log" "new-session"
     assert_log_contains "$tmux_log" "=$expected_session"
@@ -1449,6 +1470,38 @@ copilot_outer_uses_tmux_and_session_name() {
     assert_log_contains "$tmux_log" "$tmp_dir/host/sandbox"
     assert_log_not_contains "$COMPOSE_LOG_FILE" "CMD="
     assert_no_files_created "$tmp_dir"
+}
+
+copilot_session_name_disambiguates_same_basename_paths() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+
+    export STUB_TMUX_HAS_SESSION=0
+
+    local path_a="$tmp_dir/worktrees/app"
+    local path_b="$tmp_dir/other/app"
+    mkdir -p "$path_a" "$path_b"
+
+    run_cmd env CALLER_PWD="$path_a" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
+    assert_exit_code 0 "$RUN_CODE"
+    local expected_a
+    expected_a="$(compute_expected_copilot_session_name "$tmp_dir" "$path_a")"
+    assert_log_contains "$tmux_log" "=$expected_a"
+
+    : > "$tmux_log"
+    run_cmd env CALLER_PWD="$path_b" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
+    assert_exit_code 0 "$RUN_CODE"
+    local expected_b
+    expected_b="$(compute_expected_copilot_session_name "$tmp_dir" "$path_b")"
+    assert_log_contains "$tmux_log" "=$expected_b"
+
+    if [[ "$expected_a" == "$expected_b" ]]; then
+        echo "Expected distinct session names for different CALLER_PWD values" >&2
+        return 1
+    fi
 }
 
 copilot_inner_runs_copilot_and_returns_to_zsh() {
@@ -1525,6 +1578,32 @@ copilot_version_flag_uses_direct_exec() {
     assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
     assert_log_contains "$log_file" "--version"
     assert_log_contains "$log_file" "copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_init_uses_direct_exec() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- init
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux for copilot init" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -T -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" "init"
     assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
 }
 
@@ -1755,7 +1834,7 @@ copilot_redirected_stdout_errors_for_interactive_mode() {
     printf -v command_string '%q copilot --mount-root %q --workdir %q >%q 2>%q' \
         "$tmp_dir/host/sandbox" "$root" "$root" "$out_file" "$stderr_file"
     set +e
-    script -q /dev/null /bin/bash -lc "$command_string" >/dev/null
+    run_in_pseudo_tty "$command_string"
     RUN_CODE=$?
     RUN_STDOUT="$(cat "$out_file" 2>/dev/null || true)"
     RUN_STDERR="$(cat "$stderr_file" 2>/dev/null || true)"
@@ -1823,9 +1902,11 @@ run_test "codex_rejects_conflicting_args_before_compose" codex_rejects_conflicti
 run_test "codex_help_flag_after_double_dash_is_passed_to_codex" codex_help_flag_after_double_dash_is_passed_to_codex
 run_test "codex_errors_when_tmux_missing" codex_errors_when_tmux_missing
 run_test "copilot_outer_uses_tmux_and_session_name" copilot_outer_uses_tmux_and_session_name
+run_test "copilot_session_name_disambiguates_same_basename_paths" copilot_session_name_disambiguates_same_basename_paths
 run_test "copilot_inner_runs_copilot_and_returns_to_zsh" copilot_inner_runs_copilot_and_returns_to_zsh
 run_test "copilot_help_flag_after_double_dash_uses_direct_exec" copilot_help_flag_after_double_dash_uses_direct_exec
 run_test "copilot_version_flag_uses_direct_exec" copilot_version_flag_uses_direct_exec
+run_test "copilot_init_uses_direct_exec" copilot_init_uses_direct_exec
 run_test "copilot_errors_when_tmux_missing" copilot_errors_when_tmux_missing
 run_test "copilot_programmatic_requires_approval_override" copilot_programmatic_requires_approval_override
 run_test "copilot_programmatic_accepts_allow_all_aliases" copilot_programmatic_accepts_allow_all_aliases
