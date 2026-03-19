@@ -277,12 +277,21 @@ run_compose_exec_copilot() {
     local container_name="$2"
     local compose_project_name="$3"
     local abs_mount_root="$4"
-    shift 4
+    local interactive_mode="$5"
+    shift 5
     prepare_compose_env "$container_name" "$compose_project_name" "$abs_mount_root"
-    if [[ $# -gt 0 ]]; then
-        run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot "$@"; exec /bin/zsh' -- "$@"
+    if [[ "$interactive_mode" == "true" ]]; then
+        if [[ $# -gt 0 ]]; then
+            run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot "$@"; status=$?; if [[ $status -eq 0 ]]; then exec /bin/zsh; fi; exit $status' -- "$@"
+        else
+            run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot; status=$?; if [[ $status -eq 0 ]]; then exec /bin/zsh; fi; exit $status'
+        fi
     else
-        run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot; exec /bin/zsh'
+        if [[ $# -gt 0 ]]; then
+            run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot "$@"' -- "$@"
+        else
+            run_compose exec -w "$container_workdir" agent-sandbox /bin/zsh -lc 'copilot'
+        fi
     fi
 }
 
@@ -432,6 +441,31 @@ split_copilot_args() {
             COPILOT_SANDBOX_ARGS+=("$arg")
         fi
     done
+}
+
+copilot_requests_programmatic_mode() {
+    local arg
+    for arg in "$@"; do
+        case "$arg" in
+            -p|--prompt|--prompt=*|-p*|-s|--silent)
+                return 0
+                ;;
+        esac
+    done
+    return 1
+}
+
+copilot_should_use_tmux() {
+    if [[ -n "${SANDBOX_COPILOT_FORCE_TMUX:-}" ]]; then
+        return 0
+    fi
+    if [[ ! -t 0 ]]; then
+        return 1
+    fi
+    if copilot_requests_programmatic_mode "$@"; then
+        return 1
+    fi
+    return 0
 }
 
 codex_args_have_conflicts() {
@@ -1374,7 +1408,18 @@ main() {
 
     if [[ "$subcommand" == "copilot" ]]; then
         split_copilot_args "$@"
-        if [[ -z "${SANDBOX_COPILOT_NO_TMUX:-}" ]]; then
+        local copilot_use_tmux=false
+        if (( ${#COPILOT_ARGS[@]} > 0 )); then
+            if copilot_should_use_tmux "${COPILOT_ARGS[@]}"; then
+                copilot_use_tmux=true
+            fi
+        else
+            if copilot_should_use_tmux; then
+                copilot_use_tmux=true
+            fi
+        fi
+
+        if [[ -z "${SANDBOX_COPILOT_NO_TMUX:-}" ]] && [[ "$copilot_use_tmux" == true ]]; then
             if ! ensure_tmux_available; then
                 exit 1
             fi
@@ -1425,10 +1470,14 @@ main() {
             exit 1
         fi
         run_compose_up "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+        local copilot_interactive_mode=false
+        if [[ "$copilot_use_tmux" == true ]]; then
+            copilot_interactive_mode=true
+        fi
         if (( ${#COPILOT_ARGS[@]} > 0 )); then
-            run_compose_exec_copilot "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" "${COPILOT_ARGS[@]}"
+            run_compose_exec_copilot "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" "$copilot_interactive_mode" "${COPILOT_ARGS[@]}"
         else
-            run_compose_exec_copilot "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT"
+            run_compose_exec_copilot "$container_workdir" "$container_name" "$compose_project_name" "$ABS_MOUNT_ROOT" "$copilot_interactive_mode"
         fi
         exit $?
     fi

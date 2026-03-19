@@ -24,6 +24,7 @@
 - [ ] S02: Copilot 標準ディレクトリ `~/.copilot` が `.agent-home/.copilot` から永続化される
 - [ ] S03: `sandbox copilot` が tmux 経由でコンテナ内 `copilot` を起動できる
 - [ ] S04: help とテストが Copilot 統合後の仕様を保証する
+- [ ] S05: Copilot の非対話利用では tmux をバイパスし、終了コードを保持する
 
 ### 要件 ↔ ステップ対応表 (必須)
 - AC-001 → S01
@@ -35,8 +36,11 @@
 - EC-003 → S01, S04
 - EC-004 → S02
 - EC-005 → S03
+- EC-001 → S05
+- EC-005 → S05
 - 非交渉制約（標準ディレクトリ運用） → S02
 - 非交渉制約（tmux ラッパー） → S03
+- 非交渉制約（非対話時は標準入出力と終了コードを保持） → S05
 
 ---
 
@@ -242,6 +246,63 @@
 #### Refactor（振る舞い不変で整理） (任意)
 - 目的:
   - help 文面を CLI 一覧として自然に保つ
+- 変更対象:
+  - `host/sandbox`
+
+#### ステップ末尾（省略しない） (必須)
+- [ ] 期待するテスト（必要ならフォーマット/リンタ）を実行し、成功した
+- [ ] `.spec-dock/current/report.md` に実行コマンド/結果/変更ファイルを記録した
+- [ ] `update_plan` を更新し、このステップの作業ステップを完了にした
+- [ ] コミットした（エージェント）
+
+### S05 — Copilot の非対話利用では tmux をバイパスし、終了コードを保持する (必須)
+- 対象: AC-003 / EC-001 / EC-005
+- 設計参照:
+  - 対象IF/API: IF-002, IF-006, IF-007
+  - 対象テスト: `copilot_noninteractive_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+- このステップで「追加しないこと（スコープ固定）」:
+  - Codex サブコマンドの tmux 仕様は変更しない
+  - Copilot 固有の引数バリデーションや禁止引数制御は追加しない
+
+#### update_plan（着手時に登録） (必須)
+- [ ] `update_plan` に、このステップの作業ステップ（調査/Red/Green/Refactor/品質ゲート/報告/コミット）を登録した
+- 登録例:
+  - （調査）PR レビュー指摘と現行 `sandbox copilot` 実装差分の確認
+  - （Red）非対話バイパスと終了コード保持の失敗テスト追加
+  - （Green）`host/sandbox` の Copilot 実行分岐を修正
+  - （Refactor）対話/非対話の責務を整理
+  - （品質ゲート）`bash tests/sandbox_cli.test.sh`
+  - （報告）`.spec-dock/current/report.md` 更新
+  - （コミット）このステップの区切りでコミット
+
+#### 期待する振る舞い（テストケース） (必須)
+- Given: `sandbox copilot [options] -- [copilot args...]` が使え、標準入出力が非 TTY であるか、programmatic mode フラグが指定されている
+- When: `echo prompt | sandbox copilot --mount-root <root> --workdir <dir> -- -p test -s` のような非対話利用を行う
+- Then: tmux を経由せずにコンテナ内 `copilot` を直接実行し、Copilot の終了コードをそのまま返す
+- 観測点（UI/HTTP/DB/Log など）: tmux stub ログが空であること、compose exec ログ、終了コード
+- 追加/更新するテスト: `copilot_noninteractive_bypasses_tmux`, `copilot_noninteractive_preserves_exit_status`
+
+#### Red（失敗するテストを先に書く） (任意)
+- 期待する失敗:
+  - 非対話実行でも tmux セッションへ入ってしまう
+  - Copilot 失敗時に終了コードが 0 にマスクされる
+
+#### Green（最小実装） (任意)
+- 変更予定ファイル:
+  - Modify: `host/sandbox`
+  - Modify: `tests/sandbox_cli.test.sh`
+- 追加する概念（このステップで導入する最小単位）:
+  - `copilot_requests_programmatic_mode`
+  - `copilot_should_use_tmux`
+  - 対話/非対話で分岐する Copilot 実行ラッパー
+- 実装方針（最小で。余計な最適化は禁止）:
+  - stdin/stdout の TTY 状態と `copilot` 引数を見て tmux 利用要否を判定する
+  - 対話実行では成功時のみ zsh に戻し、失敗時は Copilot の終了コードを返す
+  - 非対話実行では zsh へ遷移せず、Copilot の終了コードをそのまま返す
+
+#### Refactor（振る舞い不変で整理） (任意)
+- 目的:
+  - Copilot の対話/非対話フローを読みやすく分離する
 - 変更対象:
   - `host/sandbox`
 

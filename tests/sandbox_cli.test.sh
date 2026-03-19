@@ -77,6 +77,9 @@ if [[ "$1" == "compose" ]]; then
             echo "TZ=${TZ-}"
         fi
     } >> "${STUB_DOCKER_LOG}"
+    if [[ "${1:-}" == "exec" ]]; then
+        exit "${STUB_DOCKER_COMPOSE_EXEC_EXIT:-0}"
+    fi
     exit 0
 fi
 
@@ -1435,7 +1438,7 @@ copilot_outer_uses_tmux_and_session_name() {
     local base_dir="$tmp_dir/My.Project:One"
     mkdir -p "$base_dir"
 
-    CALLER_PWD="$base_dir" run_cmd "$tmp_dir/host/sandbox" copilot
+    run_cmd env CALLER_PWD="$base_dir" SANDBOX_COPILOT_FORCE_TMUX=1 "$tmp_dir/host/sandbox" copilot
     assert_exit_code 0 "$RUN_CODE"
 
     local expected_session="My_Project_One-copilot-sandbox"
@@ -1460,11 +1463,12 @@ copilot_inner_runs_copilot_and_returns_to_zsh() {
     local workdir="$root/subdir"
     setup_env_for_up "$tmp_dir" "$root" "$workdir"
 
-    SANDBOX_COPILOT_NO_TMUX=1 run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$workdir"
+    SANDBOX_COPILOT_NO_TMUX=1 SANDBOX_COPILOT_FORCE_TMUX=1 run_cmd "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$workdir"
     assert_exit_code 0 "$RUN_CODE"
     assert_log_contains "$log_file" "CMD=docker compose up -d --build"
     assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project/subdir"
     assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" 'exit\ \$status'
     assert_log_contains "$log_file" "exec\\ /bin/zsh"
 }
 
@@ -1499,12 +1503,82 @@ copilot_errors_when_tmux_missing() {
     ln -sf "$(command -v realpath)" "$no_tmux_path/realpath"
     ln -sf "$(command -v readlink)" "$no_tmux_path/readlink"
 
-    run_cmd env -i HOME="$tmp_dir" PATH="$no_tmux_path" /bin/bash "$tmp_dir/host/sandbox" copilot
+    run_cmd env -i HOME="$tmp_dir" PATH="$no_tmux_path" SANDBOX_COPILOT_FORCE_TMUX=1 /bin/bash "$tmp_dir/host/sandbox" copilot
     if [[ "$RUN_CODE" -eq 0 ]]; then
         echo "Expected tmux error for copilot" >&2
         return 1
     fi
     assert_stderr_contains "tmux command not found" "$RUN_STDERR"
+}
+
+copilot_noninteractive_bypasses_tmux() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" -s 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+
+    assert_exit_code 0 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used for noninteractive copilot" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "CMD=docker compose exec -w /srv/mount/project"
+    assert_log_contains "$log_file" "copilot"
+    assert_log_contains "$log_file" "-p"
+    assert_log_contains "$log_file" "Say\\ hello"
+    assert_log_contains "$log_file" "-s"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
+}
+
+copilot_noninteractive_preserves_exit_status() {
+    local tmp_dir
+    tmp_dir="$(make_fake_sandbox_root)"
+    setup_compose_stubs "$tmp_dir"
+    setup_tmux_stubs "$tmp_dir"
+    local tmux_log="$tmp_dir/tmux.log"
+    local log_file="$COMPOSE_LOG_FILE"
+    export STUB_DOCKER_INFO_EXIT=0
+    export STUB_DOCKER_COMPOSE_VERSION="Docker Compose version v2.20.0"
+    export STUB_DOCKER_COMPOSE_EXEC_EXIT=42
+
+    local root="$tmp_dir/project"
+    setup_env_for_up "$tmp_dir" "$root" "$root"
+
+    local stderr_file
+    stderr_file="$(mktemp)"
+    set +e
+    RUN_STDOUT="$(printf 'hello\n' | "$tmp_dir/host/sandbox" copilot --mount-root "$root" --workdir "$root" -- -p "Say hello" -s 2>"$stderr_file")"
+    RUN_CODE=$?
+    RUN_STDERR="$(cat "$stderr_file")"
+    set -e
+    rm -f "$stderr_file"
+    unset STUB_DOCKER_COMPOSE_EXEC_EXIT
+
+    assert_exit_code 42 "$RUN_CODE"
+    if [[ -s "$tmux_log" ]]; then
+        echo "Did not expect tmux to be used for noninteractive copilot" >&2
+        cat "$tmux_log" >&2
+        return 1
+    fi
+    assert_log_contains "$log_file" "copilot"
+    assert_log_not_contains "$log_file" "exec\\ /bin/zsh"
 }
 
 run_test "help_top_level" help_top_level
@@ -1559,3 +1633,5 @@ run_test "copilot_outer_uses_tmux_and_session_name" copilot_outer_uses_tmux_and_
 run_test "copilot_inner_runs_copilot_and_returns_to_zsh" copilot_inner_runs_copilot_and_returns_to_zsh
 run_test "copilot_help_flag_after_double_dash_is_passed_to_copilot" copilot_help_flag_after_double_dash_is_passed_to_copilot
 run_test "copilot_errors_when_tmux_missing" copilot_errors_when_tmux_missing
+run_test "copilot_noninteractive_bypasses_tmux" copilot_noninteractive_bypasses_tmux
+run_test "copilot_noninteractive_preserves_exit_status" copilot_noninteractive_preserves_exit_status
